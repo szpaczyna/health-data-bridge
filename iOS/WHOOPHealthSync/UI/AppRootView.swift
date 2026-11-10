@@ -4,6 +4,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case system
     case english
     case spanish
+    case polish
 
     var id: String { rawValue }
 
@@ -15,6 +16,8 @@ enum AppLanguage: String, CaseIterable, Identifiable {
             return "English"
         case .spanish:
             return "Spanish"
+        case .polish:
+            return "Polish"
         }
     }
 
@@ -22,11 +25,15 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         switch self {
         case .system:
             let preferredLanguage = Locale.preferredLanguages.first?.lowercased() ?? "en"
-            return Locale(identifier: preferredLanguage.hasPrefix("es") ? "es" : "en")
+            if preferredLanguage.hasPrefix("es") { return Locale(identifier: "es") }
+            if preferredLanguage.hasPrefix("pl") { return Locale(identifier: "pl") }
+            return Locale(identifier: "en")
         case .english:
             return Locale(identifier: "en")
         case .spanish:
             return Locale(identifier: "es")
+        case .polish:
+            return Locale(identifier: "pl")
         }
     }
 }
@@ -42,12 +49,21 @@ enum SyncSheet: String, Identifiable {
 }
 
 struct AppRootView: View {
-    @StateObject private var viewModel = SyncViewModel()
+    @StateObject private var viewModel: SyncViewModel
     @State private var selectedTab: AppTab = .sync
     @State private var presentedSheet: SyncSheet?
     @State private var configureAfterLogin = false
     @State private var showsDisconnectConfirmation = false
     @AppStorage("appLanguage") private var appLanguage: AppLanguage = .system
+    @AppStorage("appearance") private var appearance: Appearance = .system
+
+    init() {
+        _viewModel = StateObject(wrappedValue: SyncViewModel())
+    }
+
+    init(viewModel: SyncViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -66,7 +82,7 @@ struct AppRootView: View {
             .tag(AppTab.sync)
 
             NavigationStack {
-                OptionsView(viewModel: viewModel, appLanguage: $appLanguage, presentedSheet: $presentedSheet)
+                OptionsView(viewModel: viewModel, appLanguage: $appLanguage, appearance: $appearance, presentedSheet: $presentedSheet)
                     .toolbar {
                         accountToolbar
                     }
@@ -76,6 +92,7 @@ struct AppRootView: View {
             }
             .tag(AppTab.options)
         }
+        .preferredColorScheme(appearance.colorScheme)
         .sheet(item: $presentedSheet, onDismiss: {
             if configureAfterLogin {
                 configureAfterLogin = false

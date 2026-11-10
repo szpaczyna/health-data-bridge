@@ -31,6 +31,8 @@
 		5D1000000000000000000124 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000508 /* Localizable.strings */; };
 		5D1000000000000000000125 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000509 /* InfoPlist.strings */; };
 		5D1000000000000000000126 /* HealthKitRecoveryAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000228 /* HealthKitRecoveryAdapter.swift */; };
+		5D1000000000000000000127 /* Appearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000229 /* Appearance.swift */; };
+		5D1000000000000000000128 /* Previews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000232 /* Previews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -62,6 +64,10 @@
 		5D1000000000000000000227 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = es.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		5D1000000000000000000301 /* WHOOPHealthSync.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WHOOPHealthSync.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5D1000000000000000000228 /* HealthKitRecoveryAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitRecoveryAdapter.swift; sourceTree = "<group>"; };
+		5D1000000000000000000229 /* Appearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Appearance.swift; sourceTree = "<group>"; };
+		5D1000000000000000000232 /* Previews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Previews.swift; sourceTree = "<group>"; };
+		5D1000000000000000000230 /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = pl.lproj/Localizable.strings; sourceTree = "<group>"; };
+		5D1000000000000000000231 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = pl.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -119,10 +125,12 @@
 			isa = PBXGroup;
 			children = (
 				5D1000000000000000000222 /* AppRootView.swift */,
+				5D1000000000000000000229 /* Appearance.swift */,
 				5D1000000000000000000203 /* SyncViewModel.swift */,
 				5D1000000000000000000204 /* SyncDashboardView.swift */,
 				5D1000000000000000000223 /* OptionsView.swift */,
 				5D1000000000000000000205 /* AuthenticationSheet.swift */,
+				5D1000000000000000000232 /* Previews.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -168,6 +176,7 @@
 			children = (
 				5D1000000000000000000224 /* Localizable.strings */,
 				5D1000000000000000000225 /* Localizable.strings */,
+				5D1000000000000000000230 /* Localizable.strings */,
 			);
 			name = Localizable.strings;
 			sourceTree = "<group>";
@@ -177,6 +186,7 @@
 			children = (
 				5D1000000000000000000226 /* InfoPlist.strings */,
 				5D1000000000000000000227 /* InfoPlist.strings */,
+				5D1000000000000000000231 /* InfoPlist.strings */,
 			);
 			name = InfoPlist.strings;
 			sourceTree = "<group>";
@@ -226,6 +236,7 @@
 			knownRegions = (
 				en,
 				es,
+				pl,
 				Base,
 			);
 			mainGroup = 5D1000000000000000000501;
@@ -280,6 +291,8 @@
 				5D1000000000000000000120 /* LiveSyncRuntime.swift in Sources */,
 				5D1000000000000000000121 /* SynchronizeWhoopIntent.swift in Sources */,
 				5D1000000000000000000122 /* AppRootView.swift in Sources */,
+				5D1000000000000000000127 /* Appearance.swift in Sources */,
+				5D1000000000000000000128 /* Previews.swift in Sources */,
 				5D1000000000000000000123 /* OptionsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -349,6 +362,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = 23W74CFVAM;
+				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHOOPHealthSync/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
