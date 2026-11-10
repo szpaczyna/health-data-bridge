@@ -29,6 +29,8 @@ struct AuthSmokeCheck {
         expect(tokenStore.bundle == tokenBundle, "Web sign-in should save tokens.")
         expect(auth.currentStatus() == .authenticated(email: "jose@example.com"), "Saved refresh token should mark auth as authenticated.")
         expect(MockCognitoURLProtocol.requests.isEmpty, "Web sign-in should not perform network requests.")
+        expect(WhoopWebSession.containsEmail(userCookie: #"{"id":1,"email":"jose@example.com"}"#), "Unencoded full user cookie should count as complete.")
+        expect(!WhoopWebSession.containsEmail(userCookie: #"{"id":1,"firstName":"Jose"}"#), "Short user cookie without email should not count as complete.")
 
         let invalidCases: [(String, [String: String], WhoopAuthError)] = [
             ("missing access token", validCookies.removing(WhoopWebSession.accessTokenCookie), .webSessionMissingAccessToken),
