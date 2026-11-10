@@ -113,6 +113,12 @@
 "Recovery HRV written" = "Zapisano HRV regeneracji";
 "Recovery HRV skipped" = "Pominięto HRV regeneracji";
 "Recovery history pages" = "Strony historii HRV regeneracji";
+"Unverified recoveries skipped" = "Pominięte niezweryfikowane recovery";
+"Recovery HRV could not complete; check Health access or retry." = "HRV regeneracji nie udało się ukończyć; sprawdź dostęp do Zdrowia lub spróbuj ponownie.";
+"Some recovery scores are still pending. Resume the historical import later to import them." = "Niektóre wyniki regeneracji są nadal oczekujące. Wznów import historyczny później, aby je zaimportować.";
+"Recovery history is incomplete; resume the historical import." = "Historia regeneracji jest niekompletna; wznów import historyczny.";
+"Heart rate %1$@–%2$@: unlock the iPhone and resume. Health data is unavailable while the device is locked." = "Tętno %1$@–%2$@: odblokuj iPhone'a i wznów. Dane Zdrowia są niedostępne, gdy urządzenie jest zablokowane.";
+"Heart rate %1$@–%2$@: %3$@" = "Tętno %1$@–%2$@: %3$@";
 "Read-only recovery validation" = "Weryfikacja regeneracji tylko do odczytu";
 "Uses the existing WHOOP cycles route and shows field names and types only. Does not request HealthKit access or write health data." = "Korzysta z istniejącej trasy cykli WHOOP i pokazuje tylko nazwy i typy pól. Nie żąda dostępu do HealthKit ani nie zapisuje danych zdrowotnych.";
 "Inspect WHOOP recovery schema" = "Sprawdź schemat regeneracji WHOOP";
