@@ -41,5 +41,7 @@
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<key>WHOOPCognitoClientID</key>
+	<string>37365lrcda1js3fapqfe2n40eh</string>
 </dict>
 </plist>

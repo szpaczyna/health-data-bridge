@@ -71,7 +71,6 @@ struct NextSyncPreview: Equatable {
 final class SyncViewModel: ObservableObject {
     @Published var authStatus: AuthStatus = .disconnected
     @Published var isSyncing = false
-    @Published var isAuthenticating = false
     @Published var lastSummary: SyncSummary?
     @Published var diagnostics: SyncDiagnostics = .empty
     @Published var recoveryState = RecoverySyncState()
@@ -79,6 +78,7 @@ final class SyncViewModel: ObservableObject {
     @Published var requiresAccountBinding = false
     @Published var isBindingAccount = false
     @Published var errors: [String] = []
+    private(set) var fixtureWebCookies: [String: String]?
     @Published var events: [String] = []
     @Published private(set) var setupCompleted = false
     @Published private(set) var dataAuthorizationCompleted = false
@@ -98,7 +98,7 @@ final class SyncViewModel: ObservableObject {
     var canImportHistory: Bool {
         if case .authenticated = authStatus {
             return syncEngine is any HistoryRunning && setupCompleted && !requiresAccountBinding &&
-                !isSyncing && !isAuthenticating && !isConfiguringRecovery && !isBindingAccount && !isProbingRecovery
+                !isSyncing && !isConfiguringRecovery && !isBindingAccount && !isProbingRecovery
         }
         return false
     }
@@ -166,6 +166,7 @@ final class SyncViewModel: ObservableObject {
             self.syncEngine = fixture
             self.healthKitService = fixture
             self.authStatus = .authenticated(email: "simulator@example.invalid")
+            self.fixtureWebCookies = isolatedLoginFixtureCookies(email: "new@example.invalid")
             if arguments.contains("-whoopLoginUITest") {
                 let sessionConfiguration = URLSessionConfiguration.ephemeral
                 sessionConfiguration.protocolClasses = [IsolatedLoginURLProtocol.self]
@@ -196,41 +197,17 @@ final class SyncViewModel: ObservableObject {
         appendEvent("Aplicacion inicializada.")
     }
 
-    func signIn(email: String, password: String) async {
+    func signIn(webCookies: [String: String]) {
         guard !isSyncing, !isConfiguringRecovery, let authService else { return }
-        isAuthenticating = true
-        defer { isAuthenticating = false }
 
         do {
-            let step = try await authService.signIn(email: email, password: password)
-            switch step {
-            case let .authenticated(bundle):
-                authStatus = .authenticated(email: bundle.email)
-                appendEvent("WHOOP autenticado.")
-            case let .challenge(challenge):
-                authStatus = .mfaRequired(challengeName: challenge.challengeName, destination: challenge.destination)
-                appendEvent("WHOOP solicita MFA: \(challenge.challengeName).")
-            }
-        } catch {
-            let message = Self.message(error)
-            authStatus = .reconnectRequired(reason: message)
-            errors.append(message)
-        }
-    }
-
-    func submitMFA(code: String) async {
-        guard !isSyncing, !isConfiguringRecovery, let authService else { return }
-        isAuthenticating = true
-        defer { isAuthenticating = false }
-
-        do {
-            let bundle = try await authService.respondToChallenge(code: code)
+            let bundle = try authService.signIn(webCookies: webCookies)
             authStatus = .authenticated(email: bundle.email)
-            appendEvent("MFA completado.")
+            appendEvent("WHOOP autenticado.")
         } catch {
             let message = Self.message(error)
-            errors.append(message)
             authStatus = .reconnectRequired(reason: message)
+            errors.append(message)
         }
     }
 
@@ -310,7 +287,7 @@ final class SyncViewModel: ObservableObject {
     }
 
     func authorizeSyncData(includeRecovery: Bool) async {
-        guard !isSyncing, !isAuthenticating, !isConfiguringRecovery, !isBindingAccount else { return }
+        guard !isSyncing, !isConfiguringRecovery, !isBindingAccount else { return }
         isConfiguringRecovery = true
         errors.removeAll(); resetSetupAuthorization()
         defer { isConfiguringRecovery = false; refreshDiagnostics() }
@@ -342,7 +319,7 @@ final class SyncViewModel: ObservableObject {
     func completeSyncSetup(includeRecovery: Bool, fullReadConfirmed: Bool, whoopBundle: String?,
                            now: Date = Date()) async -> Bool {
         guard dataAuthorizationCompleted, (!includeRecovery || authorizedRecoverySelection == true),
-              !isSavingSetup, !requiresAccountBinding, !isSyncing, !isAuthenticating,
+              !isSavingSetup, !requiresAccountBinding, !isSyncing,
               !isConfiguringRecovery, let repository else { return false }
         guard case .authenticated = authStatus else { return false }
         if includeRecovery {
@@ -517,7 +494,7 @@ final class SyncViewModel: ObservableObject {
     }
 
     func probeRecoverySchema() async {
-        guard !isProbingRecovery, !isSyncing, !isAuthenticating, !isConfiguringRecovery else { return }
+        guard !isProbingRecovery, !isSyncing, !isConfiguringRecovery else { return }
         isProbingRecovery = true
         defer { isProbingRecovery = false }
         do { recoveryProbeText = try await LiveSyncRuntime.shared.probeExistingCyclesSchema() }
@@ -527,7 +504,7 @@ final class SyncViewModel: ObservableObject {
     @Published private(set) var isProbingRecovery = false
 
     func probeRecoveryValues() async {
-        guard !isProbingRecovery, !isSyncing, !isAuthenticating, !isConfiguringRecovery else { return }
+        guard !isProbingRecovery, !isSyncing, !isConfiguringRecovery else { return }
         isProbingRecovery = true
         recoveryProbeText = String(localized: "Reading recovery values…")
         defer { isProbingRecovery = false }
@@ -540,7 +517,7 @@ final class SyncViewModel: ObservableObject {
     @Published private(set) var recoveryProgress = RecoverySyncSummary()
     var supportsRecovery: Bool { recoveryConfigurator?.recoveryAvailable == true }
     var canConfigureRecovery: Bool {
-        if case .authenticated = authStatus { return supportsRecovery && !isSyncing && !isAuthenticating && !isBindingAccount && !isProbingRecovery && !isConfiguringRecovery }
+        if case .authenticated = authStatus { return supportsRecovery && !isSyncing && !isBindingAccount && !isProbingRecovery && !isConfiguringRecovery }
         return false
     }
     var canImportRecovery: Bool {
@@ -587,7 +564,7 @@ final class SyncViewModel: ObservableObject {
     }
 
     func confirmExistingAccount() async {
-        guard let accountBinder, !isSyncing, !isAuthenticating, !isBindingAccount else { return }
+        guard let accountBinder, !isSyncing, !isBindingAccount else { return }
         guard case .authenticated = authStatus else { return }
         isBindingAccount = true
         defer { isBindingAccount = false; refreshDiagnostics() }
@@ -646,8 +623,6 @@ final class SyncViewModel: ObservableObject {
             return "authenticated"
         case .disconnected:
             return "disconnected"
-        case .mfaRequired:
-            return "mfaRequired"
         case .reconnectRequired:
             return "reconnectRequired"
         }
@@ -670,6 +645,20 @@ private final class IsolatedLoginTokenStore: TokenStoring {
     func load() throws -> TokenBundle? { bundle }
     func save(_ bundle: TokenBundle) throws { self.bundle = bundle }
     func delete() throws { bundle = nil }
+}
+private func isolatedLoginFixtureCookies(email: String) -> [String: String] {
+    func base64URL(_ data: Data) -> String {
+        data.base64EncodedString().replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+    }
+    let header = base64URL(Data(#"{"alg":"none","typ":"JWT"}"#.utf8))
+    let payload = base64URL(Data(#"{"exp":\#(Int(Date().timeIntervalSince1970) + 3600)}"#.utf8))
+    let user = (try? JSONSerialization.data(withJSONObject: ["email": email])).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+    return [
+        WhoopWebSession.accessTokenCookie: "\(header).\(payload).fixture",
+        WhoopWebSession.refreshTokenCookie: "fixture-refresh",
+        WhoopWebSession.userCookie: user.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? user
+    ]
 }
 private final class IsolatedLoginURLProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }

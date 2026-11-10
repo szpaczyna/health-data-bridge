@@ -12,6 +12,7 @@
 		5D1000000000000000000103 /* SyncViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000203 /* SyncViewModel.swift */; };
 		5D1000000000000000000104 /* SyncDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000204 /* SyncDashboardView.swift */; };
 		5D1000000000000000000105 /* AuthenticationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000205 /* AuthenticationSheet.swift */; };
+		5D1000000000000000000129 /* WhoopLoginWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000233 /* WhoopLoginWebView.swift */; };
 		5D1000000000000000000106 /* SyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000206 /* SyncModels.swift */; };
 		5D1000000000000000000107 /* SyncRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000207 /* SyncRepository.swift */; };
 		5D1000000000000000000108 /* MetadataKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000208 /* MetadataKeys.swift */; };
@@ -60,6 +61,7 @@
 		5D1000000000000000000203 /* SyncViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncViewModel.swift; sourceTree = "<group>"; };
 		5D1000000000000000000204 /* SyncDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDashboardView.swift; sourceTree = "<group>"; };
 		5D1000000000000000000205 /* AuthenticationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationSheet.swift; sourceTree = "<group>"; };
+		5D1000000000000000000233 /* WhoopLoginWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopLoginWebView.swift; sourceTree = "<group>"; };
 		5D1000000000000000000206 /* SyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModels.swift; sourceTree = "<group>"; };
 		5D1000000000000000000207 /* SyncRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRepository.swift; sourceTree = "<group>"; };
 		5D1000000000000000000208 /* MetadataKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataKeys.swift; sourceTree = "<group>"; };
@@ -167,6 +169,7 @@
 				5D1000000000000000000204 /* SyncDashboardView.swift */,
 				5D1000000000000000000223 /* OptionsView.swift */,
 				5D1000000000000000000205 /* AuthenticationSheet.swift */,
+				5D1000000000000000000233 /* WhoopLoginWebView.swift */,
 				5D1000000000000000000232 /* Previews.swift */,
 			);
 			path = UI;
@@ -359,6 +362,7 @@
 				5D1000000000000000000103 /* SyncViewModel.swift in Sources */,
 				5D1000000000000000000104 /* SyncDashboardView.swift in Sources */,
 				5D1000000000000000000105 /* AuthenticationSheet.swift in Sources */,
+				5D1000000000000000000129 /* WhoopLoginWebView.swift in Sources */,
 				5D1000000000000000000106 /* SyncModels.swift in Sources */,
 				5D1000000000000000000107 /* SyncRepository.swift in Sources */,
 				5D1000000000000000000108 /* MetadataKeys.swift in Sources */,

@@ -8,14 +8,11 @@
 "Authorize WHOOP and Apple Health once; then sync here or from Shortcuts." = "Autoriza WHOOP y Apple Health una vez; después podrás sincronizar desde aquí o mediante Atajos.";
 "Available in Shortcuts" = "Disponible en Atajos";
 "Cancel" = "Cancelar";
-"Code" = "Código";
-"Complete MFA" = "Completar MFA";
 "Completed" = "Correcta";
 "Completed with issues" = "Completada con incidencias";
 "Connect" = "Conectar";
 "Connect WHOOP" = "Conectar WHOOP";
 "Connect WHOOP to get started" = "Conecta WHOOP para empezar";
-"Connecting" = "Conectando";
 "Copy diagnostics" = "Copiar diagnóstico";
 "Copying diagnostics is only available on iOS." = "La copia del diagnóstico solo está disponible en iOS.";
 "Current issues" = "Incidencias actuales";
@@ -27,7 +24,6 @@
 "Disconnect WHOOP?" = "¿Desconectar WHOOP?";
 "Dismiss Shortcuts information" = "Ocultar información sobre Atajos";
 "Elapsed time" = "Tiempo";
-"Email" = "Correo electrónico";
 "English" = "Inglés";
 "Errors" = "Errores";
 "Failed" = "Fallida";
@@ -53,7 +49,6 @@
 "Latest sync summary" = "Resumen de la última sincronización";
 "Local log" = "Registro local";
 "Local progress" = "Progreso local";
-"MFA" = "MFA";
 "Never" = "Nunca";
 "Next heart-rate window" = "Próxima ventana de frecuencia cardíaca";
 "Next sleep review window" = "Próxima ventana de revisión del sueño";
@@ -62,7 +57,6 @@
 "Open Shortcuts on your iPhone to add the Sync WHOOP action." = "Abre Atajos en el iPhone para añadir la acción Sincronizar WHOOP.";
 "Open Shortcuts to add the Sync WHOOP action or include it in a personal automation." = "Abre Atajos para añadir la acción Sincronizar WHOOP o incluirla en una automatización personal.";
 "Options" = "Opciones";
-"Password" = "Contraseña";
 "Polish" = "Polaco";
 "Ready to sync" = "Listo para sincronizar";
 "Reconnect" = "Reconectar";
@@ -71,6 +65,7 @@
 "Result" = "Resultado";
 "Run the same sync from Siri or a personal automation. Your account and HealthKit must first be authorized in this app." = "Ejecuta la misma sincronización desde Siri o una automatización personal. La cuenta y HealthKit deben haberse autorizado previamente en esta app.";
 "Saved heart-rate resolution" = "Resolución de frecuencia cardíaca guardada";
+"Sign in with your WHOOP account below." = "Inicia sesión con tu cuenta WHOOP a continuación.";
 "Sleep" = "Sueño";
 "Sleep checkpoint" = "Checkpoint de sueño";
 "Sleep mode" = "Modo de sueño";
@@ -93,9 +88,8 @@
 "Syncing…" = "Sincronizando…";
 "The saved session will be removed from this iPhone. Data already written to Apple Health will not be deleted." = "Se eliminará la sesión guardada de este iPhone. Los datos que ya se hayan escrito en Apple Health no se borrarán.";
 "This session" = "Esta sesión";
+"Try again" = "Reintentar";
 "Unknown" = "Desconocido";
-"Verify" = "Verificar";
-"WHOOP" = "WHOOP";
 "WHOOP account" = "Cuenta WHOOP";
 "HealthDataBridge" = "HealthDataBridge";
 

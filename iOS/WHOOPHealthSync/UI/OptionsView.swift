@@ -20,7 +20,7 @@ struct OptionsView: View {
                     if case let .authenticated(email) = viewModel.authStatus {
                         Text(email)
                         Button("Confirm this account") { showsAccountBindingConfirmation = true }
-                            .disabled(viewModel.isSyncing || viewModel.isAuthenticating || viewModel.isBindingAccount)
+                            .disabled(viewModel.isSyncing || viewModel.isBindingAccount)
                             .accessibilityIdentifier("account.confirmSavedProgress")
                     } else {
                         Text("Connect WHOOP to confirm the account for saved sync progress.")
@@ -40,7 +40,7 @@ struct OptionsView: View {
                 Text("Imports the HRV measured during the main sleep, not the WHOOP recovery percentage. Subsequent syncs review the last seven days. No daytime readings are generated.")
                     .font(.footnote)
                 Button("Configure sync") { presentedSheet = .configuration }
-                    .disabled(viewModel.isSyncing || viewModel.isAuthenticating || viewModel.isConfiguringRecovery || !isAuthenticated || !viewModel.repositoryAvailable)
+                    .disabled(viewModel.isSyncing || viewModel.isConfiguringRecovery || !isAuthenticated || !viewModel.repositoryAvailable)
                     .accessibilityIdentifier("recovery.configure")
             }
             Section("Historical import") {
@@ -73,11 +73,11 @@ struct OptionsView: View {
             Section("Read-only recovery validation") {
                 Text("Uses the existing WHOOP cycles route and shows field names and types only. Does not request HealthKit access or write health data.")
                 Button("Inspect WHOOP recovery schema") { Task { await viewModel.probeRecoverySchema() } }
-                    .disabled(viewModel.isSyncing || viewModel.isAuthenticating || viewModel.isProbingRecovery)
+                    .disabled(viewModel.isSyncing || viewModel.isProbingRecovery)
                 Text("This additional diagnostic displays your HRV values and sleep dates locally to compare with WHOOP. It does not write to Health or include account identifiers or credentials.")
                     .font(.footnote)
                 Button("Compare recovery values with WHOOP") { Task { await viewModel.probeRecoveryValues() } }
-                    .disabled(viewModel.isSyncing || viewModel.isAuthenticating || viewModel.isProbingRecovery)
+                    .disabled(viewModel.isSyncing || viewModel.isProbingRecovery)
                     .accessibilityIdentifier("recovery.compareValues")
                 if viewModel.isProbingRecovery { ProgressView() }
                 if !viewModel.recoveryProbeText.isEmpty {
@@ -216,7 +216,7 @@ struct SyncSetupView: View {
                         fullReading = false; nativeExportChecked = false
                         Task { await viewModel.authorizeSyncData(includeRecovery: includeRecovery && viewModel.supportsRecovery) }
                     }
-                    .disabled(viewModel.isConfiguringRecovery || viewModel.isSyncing || viewModel.isAuthenticating)
+                    .disabled(viewModel.isConfiguringRecovery || viewModel.isSyncing)
                     .accessibilityIdentifier("recovery.authorize")
                     if viewModel.isConfiguringRecovery { ProgressView() }
                     if let authorization = viewModel.selectedDataAuthorization {

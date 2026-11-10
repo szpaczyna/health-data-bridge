@@ -3,33 +3,77 @@ import Foundation
 enum AuthStatus: Equatable {
     case disconnected
     case authenticated(email: String)
-    case mfaRequired(challengeName: String, destination: String?)
     case reconnectRequired(reason: String)
 }
 
-struct MFAChallenge: Equatable {
-    var email: String
-    var challengeName: String
-    var session: String
-    var destination: String?
+enum WhoopWebSession {
+    static let accessTokenCookie = "whoop-auth-token"
+    static let refreshTokenCookie = "whoop-auth-refresh-token"
+    static let userCookie = "whoop-auth-user"
 
-    var codeParameterName: String {
-        switch challengeName {
-        case "SMS_MFA":
-            return "SMS_MFA_CODE"
-        case "SOFTWARE_TOKEN_MFA":
-            return "SOFTWARE_TOKEN_MFA_CODE"
-        case "EMAIL_OTP":
-            return "EMAIL_OTP_CODE"
-        default:
-            return "ANSWER"
+    static func tokenBundle(from cookies: [String: String]) throws -> TokenBundle {
+        guard let accessToken = nonEmpty(cookies[accessTokenCookie]) else {
+            throw WhoopAuthError.webSessionMissingAccessToken
         }
+        guard let refreshToken = nonEmpty(cookies[refreshTokenCookie]) else {
+            throw WhoopAuthError.webSessionMissingRefreshToken
+        }
+        let expiresAt = try expiry(ofJWT: accessToken)
+        let email = try email(fromUserCookie: cookies[userCookie])
+        return TokenBundle(
+            email: email,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            idToken: "",
+            tokenType: "Bearer",
+            expiresAt: expiresAt
+        )
     }
-}
 
-enum CognitoAuthStep: Equatable {
-    case authenticated(TokenBundle)
-    case challenge(MFAChallenge)
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private static func expiry(ofJWT token: String) throws -> Date {
+        let parts = token.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 3 else {
+            throw WhoopAuthError.webSessionMalformedAccessToken
+        }
+        var base64 = parts[1]
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = base64.count % 4
+        if remainder > 0 {
+            base64 += String(repeating: "=", count: 4 - remainder)
+        }
+        guard
+            let data = Data(base64Encoded: base64),
+            let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let exp = payload["exp"] as? NSNumber,
+            CFGetTypeID(exp) != CFBooleanGetTypeID()
+        else {
+            throw WhoopAuthError.webSessionMalformedAccessToken
+        }
+        return Date(timeIntervalSince1970: exp.doubleValue)
+    }
+
+    private static func email(fromUserCookie value: String?) throws -> String {
+        guard let value else {
+            throw WhoopAuthError.webSessionMissingEmail
+        }
+        let decoded = value.removingPercentEncoding ?? value
+        guard
+            let data = decoded.data(using: .utf8),
+            let user = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let email = nonEmpty(user["email"] as? String)
+        else {
+            throw WhoopAuthError.webSessionMissingEmail
+        }
+        return email
+    }
 }
 
 enum WhoopCognitoClientIDMode: Equatable {
@@ -93,7 +137,6 @@ final class WhoopAuthService {
     private let tokenStore: any TokenStoring
     private let session: URLSession
     private let configuration: WhoopAuthConfiguration
-    private var pendingChallenge: MFAChallenge?
 
     init(
         tokenStore: any TokenStoring,
@@ -119,69 +162,10 @@ final class WhoopAuthService {
         }
     }
 
-    func signIn(email: String, password: String) async throws -> CognitoAuthStep {
-        AppLog.auth.info("Starting WHOOP Cognito sign-in for \(SensitiveTextSanitizer.redact(email), privacy: .public)")
-        let response = try await callCognito(
-            target: "InitiateAuth",
-            body: CognitoInitiateAuthRequest(
-                AuthFlow: "USER_PASSWORD_AUTH",
-                AuthParameters: [
-                    "USERNAME": email,
-                    "PASSWORD": password
-                ],
-                ClientId: configuration.clientID
-            )
-        )
-
-        if let auth = response.AuthenticationResult {
-            let bundle = makeTokenBundle(email: email, auth: auth, fallbackRefreshToken: nil)
-            try tokenStore.save(bundle)
-            pendingChallenge = nil
-            AppLog.auth.info("WHOOP sign-in completed.")
-            return .authenticated(bundle)
-        }
-
-        guard let challengeName = response.ChallengeName, let session = response.Session else {
-            throw WhoopAuthError.unexpectedCognitoResponse
-        }
-
-        let challenge = MFAChallenge(
-            email: email,
-            challengeName: challengeName,
-            session: session,
-            destination: response.ChallengeParameters?["CODE_DELIVERY_DESTINATION"]
-        )
-        pendingChallenge = challenge
-        AppLog.auth.info("WHOOP sign-in requires MFA challenge \(challengeName, privacy: .public)")
-        return .challenge(challenge)
-    }
-
-    func respondToChallenge(code: String) async throws -> TokenBundle {
-        guard let challenge = pendingChallenge else {
-            throw WhoopAuthError.missingPendingChallenge
-        }
-
-        let response = try await callCognito(
-            target: "RespondToAuthChallenge",
-            body: CognitoRespondToChallengeRequest(
-                ChallengeName: challenge.challengeName,
-                ClientId: configuration.clientID,
-                Session: challenge.session,
-                ChallengeResponses: [
-                    "USERNAME": challenge.email,
-                    challenge.codeParameterName: code.trimmingCharacters(in: .whitespacesAndNewlines)
-                ]
-            )
-        )
-
-        guard let auth = response.AuthenticationResult else {
-            throw WhoopAuthError.unexpectedCognitoResponse
-        }
-
-        let bundle = makeTokenBundle(email: challenge.email, auth: auth, fallbackRefreshToken: nil)
+    func signIn(webCookies: [String: String]) throws -> TokenBundle {
+        let bundle = try WhoopWebSession.tokenBundle(from: webCookies)
         try tokenStore.save(bundle)
-        pendingChallenge = nil
-        AppLog.auth.info("WHOOP MFA completed.")
+        AppLog.auth.info("WHOOP web sign-in completed for \(SensitiveTextSanitizer.redact(bundle.email), privacy: .public)")
         return bundle
     }
 
@@ -225,7 +209,6 @@ final class WhoopAuthService {
     }
 
     func disconnect() throws {
-        pendingChallenge = nil
         try tokenStore.delete()
     }
 
@@ -282,18 +265,8 @@ private struct CognitoInitiateAuthRequest: Encodable {
     var ClientId: String
 }
 
-private struct CognitoRespondToChallengeRequest: Encodable {
-    var ChallengeName: String
-    var ClientId: String
-    var Session: String
-    var ChallengeResponses: [String: String]
-}
-
 private struct CognitoResponse: Decodable {
     var AuthenticationResult: CognitoAuthenticationResult?
-    var ChallengeName: String?
-    var Session: String?
-    var ChallengeParameters: [String: String]?
 }
 
 private struct CognitoAuthenticationResult: Decodable {
@@ -306,23 +279,32 @@ private struct CognitoAuthenticationResult: Decodable {
 
 enum WhoopAuthError: Error, LocalizedError {
     case notAuthenticated
-    case missingPendingChallenge
     case unexpectedCognitoResponse
     case invalidHTTPResponse
     case cognitoRejected(status: Int, message: String)
+    case webSessionMissingAccessToken
+    case webSessionMissingRefreshToken
+    case webSessionMalformedAccessToken
+    case webSessionMissingEmail
 
     var errorDescription: String? {
         switch self {
         case .notAuthenticated:
             return "WHOOP session is not authenticated."
-        case .missingPendingChallenge:
-            return "No WHOOP MFA challenge is pending."
         case .unexpectedCognitoResponse:
             return "WHOOP authentication returned an unexpected response."
         case .invalidHTTPResponse:
             return "WHOOP authentication did not return an HTTP response."
         case let .cognitoRejected(status, message):
             return "WHOOP authentication failed (\(status)): \(message)"
+        case .webSessionMissingAccessToken:
+            return "WHOOP sign-in did not provide an access token."
+        case .webSessionMissingRefreshToken:
+            return "WHOOP sign-in did not provide a refresh token."
+        case .webSessionMalformedAccessToken:
+            return "WHOOP sign-in returned an unreadable access token."
+        case .webSessionMissingEmail:
+            return "WHOOP sign-in did not provide the account email."
         }
     }
 }

@@ -4,151 +4,62 @@ struct AuthenticationSheet: View {
     @ObservedObject var viewModel: SyncViewModel
     var onConnected: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
-    @State private var email = ""
-    @State private var password = ""
-    @State private var code = ""
+    @State private var loginError: String?
+    @State private var webViewID = UUID()
 
     var body: some View {
         NavigationStack {
-            Form {
-                switch viewModel.authStatus {
-                case let .mfaRequired(challengeName, destination):
-                    Section("MFA") {
-                        Text(challengeDescription(challengeName: challengeName, destination: destination))
-                            .foregroundStyle(.secondary)
-                        TextField("Code", text: $code)
-                            .whoopOneTimeCodeInput()
-                            .privacySensitive()
+            VStack(spacing: 0) {
+                Text("Sign in with your WHOOP account below.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding()
+
+                if let loginError {
+                    Text(loginError)
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("auth.error")
+                    Button("Try again") {
+                        self.loginError = nil
+                        webViewID = UUID()
                     }
-                default:
-                    Section("WHOOP") {
-                        TextField("Email", text: $email)
-                            .whoopEmailInput()
-                        SecureField("Password", text: $password)
-                            .whoopPasswordInput()
-                            .privacySensitive()
-                    }
+                    .padding()
                 }
 
-                if !viewModel.errors.isEmpty {
-                    Section("Errors") {
-                        ForEach(viewModel.errors, id: \.self) { error in
-                            Text(error)
-                                .foregroundStyle(.red)
-                        }
+                if let cookies = viewModel.fixtureWebCookies {
+                    Button {
+                        complete(cookies)
+                    } label: {
+                        Text(verbatim: "Use test session")
                     }
+                    .accessibilityIdentifier("auth.fixtureLogin")
+                    Spacer()
+                } else {
+                    WhoopLoginWebView(onSession: complete)
+                        .id(webViewID)
                 }
             }
             .navigationTitle("Connect WHOOP")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        clearCredentials()
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        Task {
-                            await submit()
-                        }
-                    } label: {
-                        Text(actionTitle)
-                    }
-                    .disabled(viewModel.isAuthenticating || !canSubmit)
-                }
-            }
-            .onDisappear {
-                clearCredentials()
             }
         }
     }
 
-    private var actionTitle: LocalizedStringKey {
-        if viewModel.isAuthenticating {
-            return "Connecting"
-        }
-        if case .mfaRequired = viewModel.authStatus {
-            return "Verify"
-        }
-        return "Connect"
-    }
-
-    private var canSubmit: Bool {
-        if case .mfaRequired = viewModel.authStatus {
-            return !code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
-        return !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !password.isEmpty
-    }
-
-    private func submit() async {
-        if case .mfaRequired = viewModel.authStatus {
-            let submittedCode = code
-            code = ""
-            await viewModel.submitMFA(code: submittedCode)
-        } else {
-            let submittedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-            let submittedPassword = password
-            password = ""
-            await viewModel.signIn(email: submittedEmail, password: submittedPassword)
-        }
-
-        if case .authenticated = viewModel.authStatus {
-            clearCredentials()
+    private func complete(_ cookies: [String: String]) {
+        viewModel.signIn(webCookies: cookies)
+        switch viewModel.authStatus {
+        case .authenticated:
             onConnected()
             dismiss()
+        case let .reconnectRequired(reason):
+            loginError = reason
+        case .disconnected:
+            break
         }
-    }
-
-    private func clearCredentials() {
-        email = ""
-        password = ""
-        code = ""
-    }
-
-    private func challengeDescription(challengeName: String, destination: String?) -> String {
-        if let destination, !destination.isEmpty {
-            return "\(challengeName): \(destination)"
-        }
-        return challengeName
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func whoopEmailInput() -> some View {
-        #if os(iOS)
-        self
-            .textContentType(.username)
-            .keyboardType(.emailAddress)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled(true)
-        #else
-        self
-        #endif
-    }
-
-    @ViewBuilder
-    func whoopPasswordInput() -> some View {
-        #if os(iOS)
-        self
-            .textContentType(.password)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled(true)
-        #else
-        self
-        #endif
-    }
-
-    @ViewBuilder
-    func whoopOneTimeCodeInput() -> some View {
-        #if os(iOS)
-        self
-            .textContentType(.oneTimeCode)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled(true)
-        #else
-        self
-        #endif
     }
 }

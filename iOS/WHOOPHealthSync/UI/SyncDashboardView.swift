@@ -49,7 +49,7 @@ struct SyncDashboardView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .disabled(viewModel.isSyncing || viewModel.isAuthenticating || !viewModel.repositoryAvailable || viewModel.isConfiguringRecovery)
+                    .disabled(viewModel.isSyncing || !viewModel.repositoryAvailable || viewModel.isConfiguringRecovery)
                     .accessibilityIdentifier("sync.primary")
                     .accessibilityHint(
                         isAuthenticated
@@ -203,8 +203,6 @@ struct SyncDashboardView: View {
             return "Sync now"
         }
         switch viewModel.authStatus {
-        case .mfaRequired:
-            return "Complete MFA"
         case .reconnectRequired:
             return "Reconnect"
         case .disconnected where viewModel.setupCompleted:

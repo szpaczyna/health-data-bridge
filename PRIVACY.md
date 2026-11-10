@@ -4,7 +4,7 @@ HealthDataBridge is an experimental client-side iOS app. It does not run a proje
 
 ## Data flow
 
-The app connects directly to WHOOP services using the account you supply. Password and MFA inputs are cleared after their authentication flow; saved tokens are kept in Keychain using `WhenUnlockedThisDeviceOnly`. Apple Health permission requests cover sleep, heart rate and optionally recovery RMSSD. WHOOP and Apple independently operate their services under their own policies.
+The app connects directly to WHOOP services using the account you supply. You sign in on WHOOP's own web page inside the app, which uses a non-persistent web data store. The app does not read what you type there; it reads only the WHOOP session cookies to obtain tokens. Saved tokens are kept in Keychain using `WhenUnlockedThisDeviceOnly`. Apple Health permission requests cover sleep, heart rate and optionally recovery RMSSD. WHOOP and Apple independently operate their services under their own policies.
 
 The app reads existing Apple Health samples for overlap/source checks and writes eligible missing records. Operational JSON state on the device includes checkpoints, reconciliation identifiers/fingerprints, recovery history progress, pending operations, recent events and run summaries. These records can contain sensitive information even when direct credentials are omitted.
 
