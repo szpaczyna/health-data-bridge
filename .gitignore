@@ -28,3 +28,6 @@ sync-store.json*
 .DS_Store
 # Machine-specific runtime installation helper
 scripts/finish_ios27_runtime_install.sh
+
+# temporary files
+workplan/
