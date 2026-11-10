@@ -160,8 +160,8 @@ if [[ -z "$health_update_usage" ]]; then
   exit 1
 fi
 
-if /usr/libexec/PlistBuddy -c 'Print :UIBackgroundModes' iOS/WHOOPHealthSync/Info.plist >/dev/null 2>&1; then
-  echo "Info.plist must not declare UIBackgroundModes; MVP sync is manual only." >&2
+if ! /usr/libexec/PlistBuddy -c 'Print :UIBackgroundModes' iOS/WHOOPHealthSync/Info.plist 2>/dev/null | grep -q 'fetch'; then
+  echo "Info.plist must declare UIBackgroundModes = fetch for background refresh." >&2
   exit 1
 fi
 

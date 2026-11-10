@@ -1,7 +1,9 @@
 import AppIntents
 import BackgroundTasks
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 
 private let backgroundRefreshIdentifier = "com.joselourido.WHOOPHealthSync.sync"
 private let backgroundRefreshInterval: TimeInterval = 15 * 60
@@ -10,7 +12,9 @@ private let backgroundRefreshInterval: TimeInterval = 15 * 60
 struct WHOOPHealthSyncApp: App {
     init() {
         WHOOPHealthSyncShortcuts.updateAppShortcutParameters()
+        #if os(iOS)
         Self.registerBackgroundRefresh()
+        #endif
     }
 
     var body: some Scene {
@@ -19,6 +23,7 @@ struct WHOOPHealthSyncApp: App {
         }
     }
 
+    #if os(iOS)
     private static func registerBackgroundRefresh() {
         let registered = BGTaskScheduler.shared.register(forTaskWithIdentifier: backgroundRefreshIdentifier, using: nil) { task in
             guard let refreshTask = task as? BGAppRefreshTask else {
@@ -69,4 +74,5 @@ struct WHOOPHealthSyncApp: App {
             AppLog.sync.error("Failed to schedule background refresh: \(error.localizedDescription, privacy: .public)")
         }
     }
+    #endif
 }
