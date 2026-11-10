@@ -1,8 +1,98 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Scheme LastUpgradeVersion="2700" version="1.3">
-<BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES"><BuildActionEntries><BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES"><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="5D1000000000000000000601" BuildableName="WHOOPHealthSync.app" BlueprintName="WHOOPHealthSync" ReferencedContainer="container:WHOOPHealthSync.xcodeproj"/></BuildActionEntry></BuildActionEntries></BuildAction>
-<TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES"><Testables><TestableReference skipped="NO"><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="5D2000000000000000000101" BuildableName="WHOOPHealthSyncTests.xctest" BlueprintName="WHOOPHealthSyncTests" ReferencedContainer="container:WHOOPHealthSync.xcodeproj"/></TestableReference><TestableReference skipped="NO"><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="5D2000000000000000000201" BuildableName="WHOOPHealthSyncUITests.xctest" BlueprintName="WHOOPHealthSyncUITests" ReferencedContainer="container:WHOOPHealthSync.xcodeproj"/></TestableReference></Testables></TestAction>
-<LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB"><BuildableProductRunnable runnableDebuggingMode="0"><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="5D1000000000000000000601" BuildableName="WHOOPHealthSync.app" BlueprintName="WHOOPHealthSync" ReferencedContainer="container:WHOOPHealthSync.xcodeproj"/></BuildableProductRunnable></LaunchAction>
-<ProfileAction buildConfiguration="Release"><BuildableProductRunnable runnableDebuggingMode="0"><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="5D1000000000000000000601" BuildableName="WHOOPHealthSync.app" BlueprintName="WHOOPHealthSync" ReferencedContainer="container:WHOOPHealthSync.xcodeproj"/></BuildableProductRunnable></ProfileAction>
-<AnalyzeAction buildConfiguration="Debug"/><ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/>
+<Scheme
+   LastUpgradeVersion = "2720"
+   version = "1.3">
+   <BuildAction
+      parallelizeBuildables = "YES"
+      buildImplicitDependencies = "YES">
+      <BuildActionEntries>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "5D1000000000000000000601"
+               BuildableName = "WHOOPHealthSync.app"
+               BlueprintName = "WHOOPHealthSync"
+               ReferencedContainer = "container:WHOOPHealthSync.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+      </BuildActionEntries>
+   </BuildAction>
+   <TestAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      shouldUseLaunchSchemeArgsEnv = "YES">
+      <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "5D2000000000000000000101"
+               BuildableName = "WHOOPHealthSyncTests.xctest"
+               BlueprintName = "WHOOPHealthSyncTests"
+               ReferencedContainer = "container:WHOOPHealthSync.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "5D2000000000000000000201"
+               BuildableName = "WHOOPHealthSyncUITests.xctest"
+               BlueprintName = "WHOOPHealthSyncUITests"
+               ReferencedContainer = "container:WHOOPHealthSync.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
+   </TestAction>
+   <LaunchAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      launchStyle = "0"
+      useCustomWorkingDirectory = "NO"
+      ignoresPersistentStateOnLaunch = "NO"
+      debugDocumentVersioning = "YES"
+      debugServiceExtension = "internal"
+      allowLocationSimulation = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "5D1000000000000000000601"
+            BuildableName = "WHOOPHealthSync.app"
+            BlueprintName = "WHOOPHealthSync"
+            ReferencedContainer = "container:WHOOPHealthSync.xcodeproj">
+         </BuildableReference>
+      </BuildableProductRunnable>
+   </LaunchAction>
+   <ProfileAction
+      buildConfiguration = "Release"
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      savedToolIdentifier = ""
+      useCustomWorkingDirectory = "NO"
+      debugDocumentVersioning = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "5D1000000000000000000601"
+            BuildableName = "WHOOPHealthSync.app"
+            BlueprintName = "WHOOPHealthSync"
+            ReferencedContainer = "container:WHOOPHealthSync.xcodeproj">
+         </BuildableReference>
+      </BuildableProductRunnable>
+   </ProfileAction>
+   <AnalyzeAction
+      buildConfiguration = "Debug">
+   </AnalyzeAction>
+   <ArchiveAction
+      buildConfiguration = "Release"
+      revealArchiveInOrganizer = "YES">
+   </ArchiveAction>
 </Scheme>
