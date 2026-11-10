@@ -40,7 +40,7 @@ struct WHOOPHealthSyncApp: App {
                 }
 
                 do {
-                    try await LiveSyncRuntime.shared.synchronize()
+                    _ = try await LiveSyncRuntime.shared.synchronize()
                 } catch {
                     AppLog.sync.error("Background refresh failed: \(error.localizedDescription, privacy: .public)")
                 }
