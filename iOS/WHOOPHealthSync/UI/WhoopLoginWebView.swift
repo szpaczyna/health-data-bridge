@@ -68,6 +68,10 @@ struct WhoopLoginWebView: UIViewRepresentable {
             guard !didDeliver else { return }
             var values: [String: String] = [:]
             for cookie in cookies where cookie.domain.hasSuffix("whoop.com") && !cookie.value.isEmpty {
+                // WHOOP first sets a short user cookie without the email and replaces it after the dashboard loads.
+                if cookie.name == WhoopWebSession.userCookie, !WhoopWebSession.containsEmail(userCookie: cookie.value) {
+                    continue
+                }
                 values[cookie.name] = cookie.value
             }
             // The site sets its auth cookies one at a time; delivering early would lock in a partial session.

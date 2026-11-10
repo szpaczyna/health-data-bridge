@@ -30,6 +30,10 @@ enum WhoopWebSession {
         )
     }
 
+    static func containsEmail(userCookie value: String) -> Bool {
+        (try? email(fromUserCookie: value)) != nil
+    }
+
     private static func nonEmpty(_ value: String?) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
             return nil
