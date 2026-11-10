@@ -9,6 +9,7 @@ struct OptionsView: View {
     @ObservedObject var viewModel: SyncViewModel
     @State private var showsAccountBindingConfirmation = false
     @Binding var appLanguage: AppLanguage
+    @Binding var appearance: Appearance
     @Binding var presentedSheet: SyncSheet?
 
     var body: some View {
@@ -95,7 +96,20 @@ struct OptionsView: View {
             } header: {
                 Text("Language")
             } footer: {
-                Text("Automatic uses Spanish when the iPhone is set to Spanish and English for every other language.")
+                Text("Automatic uses Spanish when the iPhone is set to Spanish, Polish when set to Polish, and English for every other language.")
+            }
+
+            Section {
+                Picker("App appearance", selection: $appearance) {
+                    ForEach(Appearance.allCases) { appearance in
+                        Text(appearance.title)
+                            .tag(appearance)
+                    }
+                }
+            } header: {
+                Text("Appearance")
+            } footer: {
+                Text("Auto follows the iPhone's light or dark appearance.")
             }
 
             Section {

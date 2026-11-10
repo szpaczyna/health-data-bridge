@@ -7,21 +7,64 @@ struct WhoopPrivateAPIConfiguration {
     var requestTimeoutSeconds: TimeInterval = 30
 }
 
-final class WhoopAPIClient {
+actor WhoopAPIClient {
+    /// Retry and backoff tuning.
+    struct RetryPolicy {
+        var maxRetries: Int
+        var baseDelay: TimeInterval
+        var maxDelay: TimeInterval
+        var sleep: (TimeInterval) async throws -> Void
+
+        static let `default` = RetryPolicy(
+            maxRetries: 3,
+            baseDelay: 0.5,
+            maxDelay: 30,
+            sleep: { interval in
+                guard interval > 0 else { return }
+                try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+            }
+        )
+    }
+
+    /// Rate limit headers from the most recent response.
+    struct RateLimitState: Equatable {
+        let limit: Int?
+        let remaining: Int?
+        let resetSeconds: Int?
+        /// `resetSeconds` counts from this moment, not from when a later call reads the state.
+        let arrivedAt: Date
+    }
+
+    /// A retryable 429 or 5xx response, kept separate from the public error it maps to.
+    private struct TransportFailure: Error {
+        let error: WhoopAPIError
+        let status: Int
+        let resetSeconds: Int?
+        let arrivedAt: Date?
+    }
+
+    static let defaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:159.0) Gecko/20100101 Firefox/159.0"
+
     private let auth: WhoopAuthService
     private let session: URLSession
     private let configuration: WhoopPrivateAPIConfiguration
+    private let budget: RequestBudget
+    private let retryPolicy: RetryPolicy
+    private var rateLimit: RateLimitState?
     private var deepDiveSleepSessionCache: [String: SleepSession] = [:]
     private let deepDiveActivityPrefix = "deep-dive-sleep:"
 
     init(
         auth: WhoopAuthService,
         session: URLSession = .shared,
-        configuration: WhoopPrivateAPIConfiguration = WhoopPrivateAPIConfiguration()
+        configuration: WhoopPrivateAPIConfiguration = WhoopPrivateAPIConfiguration(),
+        retryPolicy: RetryPolicy = .default
     ) {
         self.auth = auth
         self.session = session
         self.configuration = configuration
+        self.retryPolicy = retryPolicy
+        self.budget = RequestBudget(perMinuteLimit: 100, perDayLimit: 10_000)
     }
 
     private var recoveryRetryNotBefore: Date?
@@ -183,6 +226,42 @@ final class WhoopAPIClient {
     }
 
     private func getJSON(path: String, query: [String: String], allowRefresh: Bool = true, recoveryRequest: Bool = false) async throws -> Any {
+        var attempt = 0
+
+        while true {
+            try Task.checkCancellation()
+            if attempt == 0 {
+                try await respectRetryAfter()
+            }
+            try await budget.acquire()
+
+            do {
+                let data = try await performRequest(
+                    path: path,
+                    query: query,
+                    allowRefresh: allowRefresh,
+                    recoveryRequest: recoveryRequest
+                )
+                return try Self.parseJSON(data)
+            } catch let failure as TransportFailure {
+                let maxRetries = retryPolicy.maxRetries
+                guard attempt < maxRetries else {
+                    throw failure.error
+                }
+                let delay = RateLimitBackoff.delay(
+                    attempt: attempt,
+                    resetSeconds: failure.resetSeconds,
+                    arrivedAt: failure.arrivedAt,
+                    policy: retryPolicy
+                )
+                AppLog.api.warning("WHOOP request returned \(failure.status, privacy: .public); retrying in \(delay, privacy: .public)s (attempt \(attempt + 1, privacy: .public)/\(maxRetries, privacy: .public)).")
+                try await retryPolicy.sleep(delay)
+                attempt += 1
+            }
+        }
+    }
+
+    private func performRequest(path: String, query: [String: String], allowRefresh: Bool, recoveryRequest: Bool) async throws -> Data {
         let token = try await auth.validAccessToken()
         var request = try makeRequest(path: path, query: query, token: token)
 
@@ -192,8 +271,9 @@ final class WhoopAPIClient {
         guard let http = response as? HTTPURLResponse else {
             throw WhoopAPIError.invalidHTTPResponse
         }
-
+        updateRateLimit(from: http)
         AppLog.api.info("GET \(path, privacy: .public) status=\(http.statusCode) elapsed=\(elapsed, privacy: .public)")
+
         if Self.shouldRefreshAccessToken(afterStatus: http.statusCode), allowRefresh {
             AppLog.api.warning("WHOOP request returned \(http.statusCode, privacy: .public); refreshing token once.")
             let refreshed = try await auth.refresh()
@@ -202,18 +282,63 @@ final class WhoopAPIClient {
             guard let retryHTTP = retryResponse as? HTTPURLResponse else {
                 throw WhoopAPIError.invalidHTTPResponse
             }
-            if recoveryRequest, retryHTTP.statusCode == 429 { throw recoveryRateLimit(retryHTTP) }
-            guard (200..<300).contains(retryHTTP.statusCode) else {
-                throw WhoopAPIError.http(status: retryHTTP.statusCode, path: path, message: Self.sanitizedMessage(from: retryData))
-            }
-            return try Self.parseJSON(retryData)
+            updateRateLimit(from: retryHTTP)
+            return try finalizeResponse(data: retryData, response: retryHTTP, path: path, recoveryRequest: recoveryRequest)
         }
 
-        if recoveryRequest, http.statusCode == 429 { throw recoveryRateLimit(http) }
+        return try finalizeResponse(data: data, response: http, path: path, recoveryRequest: recoveryRequest)
+    }
+
+    private func finalizeResponse(data: Data, response http: HTTPURLResponse, path: String, recoveryRequest: Bool) throws -> Data {
+        if http.statusCode == 429 {
+            if recoveryRequest {
+                throw recoveryRateLimit(http)
+            }
+            throw TransportFailure(
+                error: WhoopAPIError.http(status: 429, path: path, message: Self.sanitizedMessage(from: data)),
+                status: 429,
+                resetSeconds: rateLimit?.resetSeconds,
+                arrivedAt: rateLimit?.arrivedAt
+            )
+        }
+        if (500...599).contains(http.statusCode) {
+            throw TransportFailure(
+                error: WhoopAPIError.http(status: http.statusCode, path: path, message: Self.sanitizedMessage(from: data)),
+                status: http.statusCode,
+                resetSeconds: nil,
+                arrivedAt: nil
+            )
+        }
         guard (200..<300).contains(http.statusCode) else {
             throw WhoopAPIError.http(status: http.statusCode, path: path, message: Self.sanitizedMessage(from: data))
         }
-        return try Self.parseJSON(data)
+        return data
+    }
+
+    private func respectRetryAfter() async throws {
+        guard let state = rateLimit,
+              state.remaining == 0,
+              let reset = state.resetSeconds,
+              reset > 0 else { return }
+        try await retryPolicy.sleep(RateLimitBackoff.resetDelay(resetSeconds: reset, arrivedAt: state.arrivedAt))
+    }
+
+    private func updateRateLimit(from response: HTTPURLResponse) {
+        let limit = response.value(forHTTPHeaderField: "x-ratelimit-limit").flatMap(Self.parseLimit)
+        let remaining = response.value(forHTTPHeaderField: "x-ratelimit-remaining").flatMap(Int.init)
+        let reset = response.value(forHTTPHeaderField: "x-ratelimit-reset").flatMap { value in
+            Int(ceil(Double(value) ?? 0))
+        }
+        rateLimit = RateLimitState(
+            limit: limit,
+            remaining: remaining,
+            resetSeconds: reset,
+            arrivedAt: Date()
+        )
+    }
+
+    private static func parseLimit(_ value: String) -> Int? {
+        Int(value.trimmingCharacters(in: .whitespaces).prefix(while: { $0.isNumber }))
     }
 
     private func recoveryRateLimit(_ response: HTTPURLResponse) -> RecoverySyncError {
@@ -247,7 +372,9 @@ final class WhoopAPIClient {
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("HealthDataBridge/0.2.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("https://app.whoop.com", forHTTPHeaderField: "Origin")
+        request.setValue("https://app.whoop.com/", forHTTPHeaderField: "Referer")
+        request.setValue(Self.defaultUserAgent, forHTTPHeaderField: "User-Agent")
         request.setValue(TimeZone.current.identifier, forHTTPHeaderField: "x-whoop-time-zone")
         request.setValue(Locale.current.identifier, forHTTPHeaderField: "locale")
         return request
@@ -356,5 +483,54 @@ enum WhoopAPIError: Error, LocalizedError {
         case let .http(status, path, message):
             return "WHOOP API \(path) failed (\(status)): \(message)"
         }
+    }
+}
+
+/// Paces outgoing requests to WHOOP's 100/minute and 10,000/day limits.
+actor RequestBudget {
+    private let perMinuteLimit: Int
+    private let perDayLimit: Int
+    private var minuteWindow: [Date] = []
+    private var dayWindow: [Date] = []
+
+    init(perMinuteLimit: Int, perDayLimit: Int) {
+        self.perMinuteLimit = perMinuteLimit
+        self.perDayLimit = perDayLimit
+    }
+
+    func acquire() async throws {
+        while true {
+            let current = Date()
+            minuteWindow.removeAll { current.timeIntervalSince($0) >= 60 }
+            dayWindow.removeAll { current.timeIntervalSince($0) >= 86_400 }
+
+            if minuteWindow.count < perMinuteLimit && dayWindow.count < perDayLimit {
+                minuteWindow.append(current)
+                dayWindow.append(current)
+                return
+            }
+
+            let wait: TimeInterval
+            if minuteWindow.count >= perMinuteLimit {
+                wait = max(0.05, 60 - current.timeIntervalSince(minuteWindow[0]) + 0.05)
+            } else {
+                wait = max(0.05, 86_400 - current.timeIntervalSince(dayWindow[0]) + 0.05)
+            }
+            try await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+        }
+    }
+}
+
+/// Delay calculation for rate limited and transient failures.
+enum RateLimitBackoff {
+    static func delay(attempt: Int, resetSeconds: Int?, arrivedAt: Date?, policy: WhoopAPIClient.RetryPolicy) -> TimeInterval {
+        let exponential = min(policy.maxDelay, policy.baseDelay * pow(2.0, Double(max(0, attempt))))
+        return max(exponential, resetDelay(resetSeconds: resetSeconds, arrivedAt: arrivedAt))
+    }
+
+    static func resetDelay(resetSeconds: Int?, arrivedAt: Date?) -> TimeInterval {
+        guard let resetSeconds = resetSeconds, resetSeconds > 0 else { return 0 }
+        let elapsed = arrivedAt.map { Date().timeIntervalSince($0) } ?? 0
+        return max(0, TimeInterval(resetSeconds) - max(0, elapsed))
     }
 }

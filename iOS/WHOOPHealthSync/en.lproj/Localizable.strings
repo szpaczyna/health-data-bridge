@@ -3,7 +3,7 @@
 "Adds only missing sleep stages and heart rate samples, without replacing data from other sources." = "Adds only missing sleep stages and heart rate samples, without replacing data from other sources.";
 "App language" = "App language";
 "Automatic" = "Automatic";
-"Automatic uses Spanish when the iPhone is set to Spanish and English for every other language." = "Automatic uses Spanish when the iPhone is set to Spanish and English for every other language.";
+"Automatic uses Spanish when the iPhone is set to Spanish, Polish when set to Polish, and English for every other language." = "Automatic uses Spanish when the iPhone is set to Spanish, Polish when set to Polish, and English for every other language.";
 "Automation" = "Automation";
 "Authorize WHOOP and Apple Health once; then sync here or from Shortcuts." = "Authorize WHOOP and Apple Health once; then sync here or from Shortcuts.";
 "Available in Shortcuts" = "Available in Shortcuts";
@@ -63,6 +63,7 @@
 "Open Shortcuts to add the Sync WHOOP action or include it in a personal automation." = "Open Shortcuts to add the Sync WHOOP action or include it in a personal automation.";
 "Options" = "Options";
 "Password" = "Password";
+"Polish" = "Polish";
 "Ready to sync" = "Ready to sync";
 "Reconnect" = "Reconnect";
 "Reconnect required" = "Reconnect required";
@@ -211,3 +212,10 @@
 "Complete your sleep, heart rate and, when available, recovery HRV data in Health." = "Complete your sleep, heart rate and, when available, recovery HRV data in Health.";
 "Local sync data unavailable; synchronization is blocked. Retry opening the app when data is accessible." = "Local sync data unavailable; synchronization is blocked. Retry opening the app when data is accessible.";
 "Complete sync setup and a first manual sync in HealthDataBridge before running the automation." = "Complete sync setup and a first manual sync in HealthDataBridge before running the automation.";
+
+"Appearance" = "Appearance";
+"App appearance" = "App appearance";
+"Auto follows the iPhone's light or dark appearance." = "Auto follows the iPhone's light or dark appearance.";
+"Auto" = "Auto";
+"Light" = "Light";
+"Dark" = "Dark";

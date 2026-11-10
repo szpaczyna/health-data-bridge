@@ -1,0 +1,2 @@
+"NSHealthShareUsageDescription" = "HealthDataBridge odczytuje próbki snu i tętna oraz opcjonalnie HRV regeneracji, gdy jest skonfigurowane, aby uniknąć nakładających się importów WHOOP.";
+"NSHealthUpdateUsageDescription" = "HealthDataBridge zapisuje brakujące fazy snu i próbki tętna z WHOOP oraz opcjonalnie HRV regeneracji, gdy jest skonfigurowane.";

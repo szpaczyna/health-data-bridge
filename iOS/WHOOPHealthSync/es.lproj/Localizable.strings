@@ -3,7 +3,7 @@
 "Adds only missing sleep stages and heart rate samples, without replacing data from other sources." = "Añade únicamente las fases de sueño y muestras de frecuencia cardíaca que falten, sin sustituir datos de otras fuentes.";
 "App language" = "Idioma de la app";
 "Automatic" = "Automático";
-"Automatic uses Spanish when the iPhone is set to Spanish and English for every other language." = "Automático usa español cuando el iPhone está configurado en español e inglés para cualquier otro idioma.";
+"Automatic uses Spanish when the iPhone is set to Spanish, Polish when set to Polish, and English for every other language." = "Automático usa español cuando el iPhone está configurado en español, polaco cuando está en polaco e inglés para cualquier otro idioma.";
 "Automation" = "Automatización";
 "Authorize WHOOP and Apple Health once; then sync here or from Shortcuts." = "Autoriza WHOOP y Apple Health una vez; después podrás sincronizar desde aquí o mediante Atajos.";
 "Available in Shortcuts" = "Disponible en Atajos";
@@ -63,6 +63,7 @@
 "Open Shortcuts to add the Sync WHOOP action or include it in a personal automation." = "Abre Atajos para añadir la acción Sincronizar WHOOP o incluirla en una automatización personal.";
 "Options" = "Opciones";
 "Password" = "Contraseña";
+"Polish" = "Polaco";
 "Ready to sync" = "Listo para sincronizar";
 "Reconnect" = "Reconectar";
 "Reconnect required" = "Es necesario reconectar";
@@ -211,3 +212,10 @@
 "Complete your sleep, heart rate and, when available, recovery HRV data in Health." = "Completa en Salud tus datos de sueño, frecuencia cardíaca y, si está disponible, VFC de recuperación.";
 "Local sync data unavailable; synchronization is blocked. Retry opening the app when data is accessible." = "Los datos locales no están disponibles; la sincronización está bloqueada. Vuelve a abrir la app cuando los datos sean accesibles.";
 "Complete sync setup and a first manual sync in HealthDataBridge before running the automation." = "Completa la configuración y una primera sincronización manual en HealthDataBridge antes de ejecutar la automatización.";
+
+"Appearance" = "Apariencia";
+"App appearance" = "Apariencia de la app";
+"Auto follows the iPhone's light or dark appearance." = "Automático sigue la apariencia clara u oscura del iPhone.";
+"Auto" = "Automático";
+"Light" = "Clara";
+"Dark" = "Oscura";
