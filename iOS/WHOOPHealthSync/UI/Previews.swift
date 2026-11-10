@@ -206,16 +206,6 @@ private struct OptionsPreview: View {
     )
 }
 
-#Preview("Authentication - MFA") {
-    AuthenticationSheet(
-        viewModel: PreviewFixtures.makeViewModel(
-            authStatus: .mfaRequired(challengeName: "SMS_MFA", destination: "+1 ••• ••• 1234"),
-            setupCompleted: false,
-            lastRunStatus: nil
-        )
-    )
-}
-
 #Preview("Authentication - reconnect") {
     AuthenticationSheet(
         viewModel: PreviewFixtures.makeViewModel(

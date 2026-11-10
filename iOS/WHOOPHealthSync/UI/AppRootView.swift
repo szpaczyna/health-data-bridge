@@ -141,7 +141,7 @@ struct AppRootView: View {
                     } label: {
                         Label("Reconnect", systemImage: "arrow.clockwise")
                     }
-                    .disabled(viewModel.isAuthenticating || viewModel.isSyncing || viewModel.isBindingAccount)
+                    .disabled(viewModel.isSyncing || viewModel.isBindingAccount)
 
                     Divider()
 
@@ -157,7 +157,7 @@ struct AppRootView: View {
                     } label: {
                         Label(accountActionTitle, systemImage: "person.crop.circle.badge.plus")
                     }
-                    .disabled(viewModel.isAuthenticating || viewModel.isSyncing || viewModel.isBindingAccount)
+                    .disabled(viewModel.isSyncing || viewModel.isBindingAccount)
                 }
             } label: {
                 Label("WHOOP account", systemImage: "ellipsis.circle")
@@ -167,8 +167,6 @@ struct AppRootView: View {
 
     private var accountActionTitle: LocalizedStringKey {
         switch viewModel.authStatus {
-        case .mfaRequired:
-            return "Complete MFA"
         case .reconnectRequired:
             return "Reconnect"
         case .authenticated, .disconnected:

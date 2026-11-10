@@ -45,7 +45,7 @@ final class RecoveryUITests: XCTestCase {
         let app = app(language: "english")
         let connect = app.buttons.matching(NSPredicate(format: "label IN %@", ["Connect WHOOP", "Reconnect"])).firstMatch
         XCTAssertTrue(connect.waitForExistence(timeout: 10)); connect.tap()
-        XCTAssertTrue(app.secureTextFields.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.webViews["auth.webLogin"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Cancel"].exists); app.buttons["Cancel"].tap()
         XCTAssertTrue(app.staticTexts["Recovery HRV"].exists)
     }
@@ -166,11 +166,9 @@ final class RecoveryUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-appLanguage", "english", "-whoopLoginUITest", "-whoopFixtureID", UUID().uuidString]
         app.launch(); app.buttons["sync.primary"].tap()
-        let email = app.textFields["Email"]
-        XCTAssertTrue(email.waitForExistence(timeout: 5)); email.tap(); email.typeText("new@example.invalid")
-        let password = app.secureTextFields["Password"]
-        password.tap(); password.typeText("fixture-only")
-        app.navigationBars.buttons["Connect"].tap()
+        let fixtureLogin = app.buttons["auth.fixtureLogin"]
+        XCTAssertTrue(fixtureLogin.waitForExistence(timeout: 5))
+        fixtureLogin.tap()
         XCTAssertTrue(app.buttons["recovery.authorize"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.switches["sync.includeHRV"].exists)
         XCTAssertEqual(app.datePickers.count, 0)

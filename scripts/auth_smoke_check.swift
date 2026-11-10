@@ -13,45 +13,78 @@ struct AuthSmokeCheck {
         let auth = WhoopAuthService(tokenStore: tokenStore, session: session)
         expect(auth.currentStatus() == .disconnected, "Fresh auth service should start disconnected.")
 
-        let firstStep = try await auth.signIn(email: "jose@example.com", password: "secret-password")
-        guard case let .challenge(challenge) = firstStep else {
-            fatalError("Expected MFA challenge from first sign-in step.")
-        }
-        expect(challenge.challengeName == "SMS_MFA", "Challenge name should parse from Cognito response.")
-        expect(challenge.destination == "+***1234", "Challenge destination should parse from Cognito response.")
-        expect(tokenStore.bundle == nil, "Token store should remain empty until MFA succeeds.")
-
-        let tokenBundle = try await auth.respondToChallenge(code: " 123456 ")
-        expect(tokenBundle.email == "jose@example.com", "MFA response should persist account email.")
-        expect(tokenBundle.accessToken == "access-after-mfa", "MFA response should save returned access token.")
-        expect(tokenBundle.refreshToken == "refresh-after-mfa", "MFA response should save returned refresh token.")
-        expect(tokenStore.bundle == tokenBundle, "MFA response should save tokens.")
+        let accessToken = fixtureJWT(exp: 2_000_000_000)
+        let validCookies = [
+            WhoopWebSession.accessTokenCookie: " \(accessToken) ",
+            WhoopWebSession.refreshTokenCookie: "web-refresh-token",
+            WhoopWebSession.userCookie: "%7B%22email%22%3A%22jose%40example.com%22%2C%22id%22%3A1%7D"
+        ]
+        let tokenBundle = try auth.signIn(webCookies: validCookies)
+        expect(tokenBundle.email == "jose@example.com", "Web sign-in should read the account email from the user cookie.")
+        expect(tokenBundle.accessToken == accessToken, "Web sign-in should save the trimmed access token.")
+        expect(tokenBundle.refreshToken == "web-refresh-token", "Web sign-in should save the refresh token.")
+        expect(tokenBundle.idToken == "", "Web sign-in has no id token.")
+        expect(tokenBundle.tokenType == "Bearer", "Web sign-in should use Bearer tokens.")
+        expect(tokenBundle.expiresAt == Date(timeIntervalSince1970: 2_000_000_000), "Web sign-in should read expiry from the JWT exp claim.")
+        expect(tokenStore.bundle == tokenBundle, "Web sign-in should save tokens.")
         expect(auth.currentStatus() == .authenticated(email: "jose@example.com"), "Saved refresh token should mark auth as authenticated.")
+        expect(MockCognitoURLProtocol.requests.isEmpty, "Web sign-in should not perform network requests.")
+
+        let invalidCases: [(String, [String: String], WhoopAuthError)] = [
+            ("missing access token", validCookies.removing(WhoopWebSession.accessTokenCookie), .webSessionMissingAccessToken),
+            ("empty access token", validCookies.setting(WhoopWebSession.accessTokenCookie, "  "), .webSessionMissingAccessToken),
+            ("missing refresh token", validCookies.removing(WhoopWebSession.refreshTokenCookie), .webSessionMissingRefreshToken),
+            ("two-part JWT", validCookies.setting(WhoopWebSession.accessTokenCookie, "header.payload"), .webSessionMalformedAccessToken),
+            ("non-base64 payload", validCookies.setting(WhoopWebSession.accessTokenCookie, "header.!!!.signature"), .webSessionMalformedAccessToken),
+            ("payload without exp", validCookies.setting(WhoopWebSession.accessTokenCookie, fixtureJWT(payload: ["token_use": "access"])), .webSessionMalformedAccessToken),
+            ("missing user cookie", validCookies.removing(WhoopWebSession.userCookie), .webSessionMissingEmail),
+            ("user JSON without email", validCookies.setting(WhoopWebSession.userCookie, "%7B%22id%22%3A1%7D"), .webSessionMissingEmail)
+        ]
+        let seededBundle = TokenBundle(
+            email: "seed@example.com",
+            accessToken: "seed-access",
+            refreshToken: "seed-refresh",
+            idToken: "",
+            tokenType: "Bearer",
+            expiresAt: Date(timeIntervalSince1970: 1_000)
+        )
+        for (name, cookies, expectedError) in invalidCases {
+            let invalidStore = InMemoryTokenStore()
+            invalidStore.bundle = seededBundle
+            let invalidAuth = WhoopAuthService(tokenStore: invalidStore, session: session)
+            do {
+                _ = try invalidAuth.signIn(webCookies: cookies)
+                fatalError("Web sign-in with \(name) should throw.")
+            } catch let error as WhoopAuthError {
+                expect(error.localizedDescription == expectedError.localizedDescription, "Web sign-in with \(name) should throw \(expectedError).")
+                if let token = cookies[WhoopWebSession.accessTokenCookie], !token.trimmingCharacters(in: .whitespaces).isEmpty {
+                    expect(!error.localizedDescription.contains(token), "Web sign-in error for \(name) should not contain the token.")
+                }
+            }
+            expect(invalidStore.bundle == seededBundle, "Web sign-in with \(name) should leave the token store untouched.")
+        }
 
         tokenStore.bundle?.expiresAt = Date().addingTimeInterval(-10)
         let refreshedToken = try await auth.validAccessToken()
         expect(refreshedToken == "access-after-refresh", "Expired access token should trigger refresh.")
-        expect(tokenStore.bundle?.refreshToken == "refresh-after-mfa", "Refresh flow should retain old refresh token when Cognito omits a new one.")
-
-        try auth.disconnect()
-        expect(tokenStore.bundle == nil, "Disconnect should remove saved tokens.")
-        expect(auth.currentStatus() == .disconnected, "Disconnect should return to disconnected status.")
+        expect(tokenStore.bundle?.refreshToken == "web-refresh-token", "Refresh flow should retain old refresh token when Cognito omits a new one.")
 
         let requests = MockCognitoURLProtocol.requests
-        expect(requests.count == 3, "Auth smoke should perform sign-in, MFA and refresh requests.")
-        expect(requests[0].body["AuthFlow"] as? String == "USER_PASSWORD_AUTH", "First request should use USER_PASSWORD_AUTH.")
+        expect(requests.count == 1, "Auth smoke should perform one refresh request.")
+        expect(requests[0].body["AuthFlow"] as? String == "REFRESH_TOKEN_AUTH", "Refresh request should use REFRESH_TOKEN_AUTH.")
+        expect((requests[0].body["AuthParameters"] as? [String: String])?["REFRESH_TOKEN"] == "web-refresh-token", "Refresh request should send the saved refresh token.")
         expect(requests[0].body["ClientId"] as? String == "", "Default WHOOP proxy request should intentionally send an empty ClientId.")
-        expect((requests[1].body["ChallengeResponses"] as? [String: String])?["SMS_MFA_CODE"] == "123456", "MFA request should trim and send the SMS code.")
-        expect(requests[2].body["AuthFlow"] as? String == "REFRESH_TOKEN_AUTH", "Refresh request should use REFRESH_TOKEN_AUTH.")
 
         MockCognitoURLProtocol.reset()
+        let explicitStore = InMemoryTokenStore()
+        explicitStore.bundle = tokenBundle
         let explicitAuth = WhoopAuthService(
-            tokenStore: InMemoryTokenStore(),
+            tokenStore: explicitStore,
             session: session,
-            configuration: WhoopAuthConfiguration(clientIDMode: .explicit(" explicit-client "))
+            configuration: WhoopAuthConfiguration(clientIDMode: .explicit("37365lrcda1js3fapqfe2n40eh"))
         )
-        _ = try await explicitAuth.signIn(email: "jose@example.com", password: "secret-password")
-        expect(MockCognitoURLProtocol.requests.first?.body["ClientId"] as? String == "explicit-client", "Auth configuration should allow an explicit Cognito ClientId override.")
+        _ = try await explicitAuth.refresh()
+        expect(MockCognitoURLProtocol.requests.first?.body["ClientId"] as? String == "37365lrcda1js3fapqfe2n40eh", "Auth configuration should send the explicit Cognito ClientId on refresh.")
 
         MockCognitoURLProtocol.reset()
         MockCognitoURLProtocol.overrideStatusCode = 400
@@ -59,12 +92,14 @@ struct AuthSmokeCheck {
             "__type": "NotAuthorizedException",
             "message": "Rejected jose@example.com Authorization: Bearer secret-token password=secret-password refreshToken=refresh-secret jwt=header.payload.signature"
         ]
+        let rejectedStore = InMemoryTokenStore()
+        rejectedStore.bundle = tokenBundle
         let rejectedAuth = WhoopAuthService(
-            tokenStore: InMemoryTokenStore(),
+            tokenStore: rejectedStore,
             session: session
         )
         do {
-            _ = try await rejectedAuth.signIn(email: "jose@example.com", password: "secret-password")
+            _ = try await rejectedAuth.refresh()
             fatalError("Rejected Cognito responses should throw.")
         } catch {
             let message = error.localizedDescription
@@ -77,6 +112,10 @@ struct AuthSmokeCheck {
             expect(message.contains("Bearer [redacted-token]"), "Rejected Cognito error should include the bearer redaction marker.")
         }
 
+        try auth.disconnect()
+        expect(tokenStore.bundle == nil, "Disconnect should remove saved tokens.")
+        expect(auth.currentStatus() == .disconnected, "Disconnect should return to disconnected status.")
+
         print("WhoopAuthService smoke check passed")
     }
 
@@ -84,6 +123,37 @@ struct AuthSmokeCheck {
         guard condition() else {
             fatalError(message)
         }
+    }
+
+    private static func fixtureJWT(exp: Int) -> String {
+        fixtureJWT(payload: ["exp": exp, "token_use": "access"])
+    }
+
+    private static func fixtureJWT(payload: [String: Any]) -> String {
+        let header = base64URL(try! JSONSerialization.data(withJSONObject: ["alg": "RS256", "typ": "JWT"]))
+        let body = base64URL(try! JSONSerialization.data(withJSONObject: payload))
+        return "\(header).\(body).fixture-signature"
+    }
+
+    private static func base64URL(_ data: Data) -> String {
+        data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+}
+
+private extension Dictionary where Key == String, Value == String {
+    func removing(_ key: String) -> [String: String] {
+        var copy = self
+        copy.removeValue(forKey: key)
+        return copy
+    }
+
+    func setting(_ key: String, _ value: String) -> [String: String] {
+        var copy = self
+        copy[key] = value
+        return copy
     }
 }
 
@@ -158,27 +228,7 @@ private final class MockCognitoURLProtocol: URLProtocol {
     override func stopLoading() {}
 
     private func response(for body: [String: Any]) throws -> [String: Any] {
-        if body["ChallengeName"] as? String == "SMS_MFA" {
-            return [
-                "AuthenticationResult": [
-                    "AccessToken": "access-after-mfa",
-                    "RefreshToken": "refresh-after-mfa",
-                    "IdToken": "id-after-mfa",
-                    "ExpiresIn": 3600,
-                    "TokenType": "Bearer"
-                ]
-            ]
-        }
-
         switch body["AuthFlow"] as? String {
-        case "USER_PASSWORD_AUTH":
-            return [
-                "ChallengeName": "SMS_MFA",
-                "Session": "temporary-session",
-                "ChallengeParameters": [
-                    "CODE_DELIVERY_DESTINATION": "+***1234"
-                ]
-            ]
         case "REFRESH_TOKEN_AUTH":
             return [
                 "AuthenticationResult": [
