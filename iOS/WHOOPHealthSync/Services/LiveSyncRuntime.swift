@@ -297,7 +297,7 @@ enum AutomatedSyncError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .whoopNotConnected:
-            return "Abre HealthDataBridge y conecta tu cuenta antes de ejecutar la automatización."
+            return String(localized: "Open HealthDataBridge and connect your account before running the automation.")
         case .initialManualSyncRequired:
             return String(localized: "Complete sync setup and a first manual sync in HealthDataBridge before running the automation.")
         }
