@@ -218,14 +218,14 @@ final class SyncEngine {
 
             let run = try repository.createRun(startedAt: startedAt, plan: plan)
             activeRun = run
-            recordEvent(runID: run, level: "info", category: "sync", message: "Inicio manual. Ventana HR \(Self.iso(plan.heartRateWindow.start)) → \(Self.iso(plan.heartRateWindow.end)); ventana sueño \(Self.iso(sleepQueryWindow.start)) → \(Self.iso(sleepQueryWindow.end)).")
+            recordEvent(runID: run, level: "info", category: "sync", message: String(localized: "Manual start. HR window \(Self.iso(plan.heartRateWindow.start)) → \(Self.iso(plan.heartRateWindow.end)); sleep window \(Self.iso(sleepQueryWindow.start)) → \(Self.iso(sleepQueryWindow.end))."))
             AppLog.sync.info("Manual sync started. HR \(plan.heartRateWindow.start, privacy: .public)-\(plan.heartRateWindow.end, privacy: .public)")
 
             try Task.checkCancellation()
             sleepBoundary = try await healthKit.authorizedBoundary(for: "sleep")
             heartRateBoundary = try await healthKit.authorizedBoundary(for: "heartRate")
             try await validateHealthKitReadVisibility(plan: plan, runID: run)
-            recordEvent(runID: run, level: "info", category: "api", message: "Usuario WHOOP autenticado; id recibido.")
+            recordEvent(runID: run, level: "info", category: "api", message: String(localized: "WHOOP user authenticated; ID received."))
             let sleep = try await syncSleep(user: user, plan: plan, runID: run)
             summary.merge(sleep)
             summary.sleepResult = sleep.errors.isEmpty ? (sleep.stagesWritten > 0 ? .updated : sleep.sleepsUnchanged + sleep.stagesSkipped > 0 ? .existing : .noData) : .failed
@@ -253,7 +253,7 @@ final class SyncEngine {
             summary.elapsedSeconds = Date().timeIntervalSince(startedAt)
             let status = summary.hasIncompleteResults ? "partial" : "success"
             try repository.finishRun(run, summary: summary, status: status)
-            recordEvent(runID: run, level: status == "success" ? "info" : "warning", category: "sync", message: "Fin de sync: \(status). Sueños descargados=\(summary.sleepsDownloaded), fases escritas=\(summary.stagesWritten), HR descargadas=\(summary.heartRateDownloaded), HR escritas=\(summary.heartRateWritten), errores=\(summary.errors.count).")
+            recordEvent(runID: run, level: status == "success" ? "info" : "warning", category: "sync", message: String(localized: "Sync finished: \(status). Sleeps downloaded=\(summary.sleepsDownloaded), stages written=\(summary.stagesWritten), HR downloaded=\(summary.heartRateDownloaded), HR written=\(summary.heartRateWritten), errors=\(summary.errors.count)."))
             AppLog.sync.info("Manual sync finished with status \(status, privacy: .public).")
             lastSummary = summary
             return summary
@@ -274,7 +274,7 @@ final class SyncEngine {
             let failedRun = activeRun ?? (try? repository.createRejectedRun(startedAt: startedAt))
             if let run = failedRun {
                 try? repository.finishRun(run, summary: summary, status: error is CancellationError ? "cancelled" : "failed")
-                recordEvent(runID: run, level: "error", category: "sync", message: "Sync fallida: \(Self.message(error))")
+                recordEvent(runID: run, level: "error", category: "sync", message: String(localized: "Sync failed: \(Self.message(error))"))
             }
             AppLog.sync.error("Manual sync failed: \(Self.message(error), privacy: .public)")
             throw error
@@ -294,7 +294,7 @@ final class SyncEngine {
                 runID: runID,
                 level: externalCount > 0 ? "info" : "warning",
                 category: "healthkit.read_preflight",
-                message: "Preflight lectura sueño \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): \(samples.count) muestras visibles, externas=\(externalCount)."
+                message: String(localized: "Sleep read preflight \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): \(samples.count) visible samples, external=\(externalCount).")
             )
             if externalCount == 0 {
                 missingTypes.append("Sleep Analysis")
@@ -305,7 +305,7 @@ final class SyncEngine {
                 runID: runID,
                 level: samples.isEmpty ? "warning" : "info",
                 category: "healthkit.read_guard",
-                message: "Guardia lectura sueño \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): \(samples.count) muestras visibles."
+                message: String(localized: "Sleep read guard \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): \(samples.count) visible samples.")
             )
             if samples.isEmpty {
                 missingTypes.append("Sleep Analysis")
@@ -319,7 +319,7 @@ final class SyncEngine {
                 runID: runID,
                 level: externalCount > 0 ? "info" : "warning",
                 category: "healthkit.read_preflight",
-                message: "Preflight lectura HR \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): \(samples.count) muestras visibles, externas=\(externalCount)."
+                message: String(localized: "HR read preflight \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): \(samples.count) visible samples, external=\(externalCount).")
             )
             if externalCount == 0 {
                 missingTypes.append("Heart Rate")
@@ -330,7 +330,7 @@ final class SyncEngine {
                 runID: runID,
                 level: samples.isEmpty ? "warning" : "info",
                 category: "healthkit.read_guard",
-                message: "Guardia lectura HR \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): \(samples.count) muestras visibles."
+                message: String(localized: "HR read guard \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): \(samples.count) visible samples.")
             )
             if samples.isEmpty {
                 missingTypes.append("Heart Rate")
@@ -361,7 +361,7 @@ final class SyncEngine {
             }
             let activities = try await api.fetchSleepActivities(userID: user.id, start: sleepWindow.start, end: sleepWindow.end)
             summary.sleepsDownloaded = activities.count
-            recordEvent(runID: runID, level: "info", category: "sleep.api", message: "Descargados \(activities.count) IDs de sueño para \(Self.iso(sleepWindow.start)) → \(Self.iso(sleepWindow.end)).")
+            recordEvent(runID: runID, level: "info", category: "sleep.api", message: String(localized: "Downloaded \(activities.count) sleep IDs for \(Self.iso(sleepWindow.start)) → \(Self.iso(sleepWindow.end))."))
             AppLog.sleep.info("Downloaded \(activities.count) sleep activity IDs.")
 
             for activity in activities {
@@ -370,7 +370,7 @@ final class SyncEngine {
                     let session = try await api.fetchSleepSession(activity: activity)
                     guard TimeRange(start: session.start, end: session.end).overlaps(sleepWindow) else {
                         summary.sleepsDiscardedOutOfWindow += 1
-                        recordEvent(runID: runID, level: "warning", category: "sleep.filter", message: "Sueño descartado fuera de ventana: \(session.whoopSleepID).")
+                        recordEvent(runID: runID, level: "warning", category: "sleep.filter", message: String(localized: "Sleep discarded outside window: \(session.whoopSleepID)."))
                         AppLog.sleep.warning("Sleep \(session.whoopSleepID, privacy: .public) discarded because it is outside query window.")
                         continue
                     }
@@ -388,7 +388,7 @@ final class SyncEngine {
                         continue
                     }
                     let existingSamples = try await healthKit.querySleepSamples(from: healthKitWindowStart, to: healthKitWindowEnd)
-                    recordEvent(runID: runID, level: "info", category: "sleep.healthkit", message: "Leídas \(existingSamples.count) muestras HealthKit para sueño \(session.whoopSleepID).")
+                    recordEvent(runID: runID, level: "info", category: "sleep.healthkit", message: String(localized: "Read \(existingSamples.count) HealthKit samples for sleep \(session.whoopSleepID)."))
                     let reconciliation = SleepCoverageReconciler.plan(
                         session: session,
                         existingSamples: existingSamples.map(\.existing),
@@ -421,14 +421,14 @@ final class SyncEngine {
 
                     let result = "written=\(reconciliation.fragmentsToWrite.count), skipped=\(reconciliation.skippedDetailedFragments), removed=\(recordsToDelete.count)"
                     try repository.upsertSleepRecord(session: session, fingerprint: fingerprint, result: result)
-                    recordEvent(runID: runID, level: "info", category: "sleep.write", message: "Sueño \(session.whoopSleepID): \(result).")
+                    recordEvent(runID: runID, level: "info", category: "sleep.write", message: String(localized: "Sleep \(session.whoopSleepID): \(result)."))
                     AppLog.sleep.info("Sleep \(session.whoopSleepID, privacy: .public): \(result, privacy: .public)")
                 } catch {
                     if Self.isGlobalFailure(error) {
                         throw error
                     }
                     sleepHadErrors = true
-                    let message = "Sueño \(activity.activityID): \(Self.message(error))"
+                    let message = String(localized: "Sleep \(activity.activityID): \(Self.message(error))")
                     summary.errors.append(message)
                     recordEvent(runID: runID, level: "error", category: "sleep", message: message)
                     AppLog.sleep.error("\(message, privacy: .public)")
@@ -441,14 +441,14 @@ final class SyncEngine {
                     if sleepBoundary.map({ sleepWindow.start >= $0 }) ?? true { try repository.setDeferredWindow(nil, for: "sleep") }
                     try repository.setSleepCheckpoint(plan.sleepDiscoveryWindow.end)
                 }
-                recordEvent(runID: runID, level: "info", category: "sleep.checkpoint", message: "Checkpoint de sueño actualizado a \(Self.iso(plan.sleepDiscoveryWindow.end)).")
+                recordEvent(runID: runID, level: "info", category: "sleep.checkpoint", message: String(localized: "Sleep checkpoint updated to \(Self.iso(plan.sleepDiscoveryWindow.end))."))
             }
         } catch {
             if Self.isGlobalFailure(error) {
                 throw error
             }
-            summary.errors.append("Sueño: \(Self.message(error))")
-            recordEvent(runID: runID, level: "error", category: "sleep", message: "Pipeline sueño falló: \(Self.message(error))")
+            summary.errors.append(String(localized: "Sleep: \(Self.message(error))"))
+            recordEvent(runID: runID, level: "error", category: "sleep", message: String(localized: "Sleep pipeline failed: \(Self.message(error))"))
             AppLog.sleep.error("Sleep pipeline failed: \(Self.message(error), privacy: .public)")
         }
 
@@ -486,7 +486,7 @@ final class SyncEngine {
                 let discarded = rawPoints.count - pointsInChunk.count
                 summary.heartRateDiscardedOutOfWindow += discarded
                 if discarded > 0 {
-                    recordEvent(runID: runID, level: "warning", category: "hr.filter", message: "Descartadas \(discarded) muestras HR fuera del chunk \(Self.iso(chunk.start)) → \(Self.iso(chunk.end)).")
+                    recordEvent(runID: runID, level: "warning", category: "hr.filter", message: String(localized: "Discarded \(discarded) HR samples outside chunk \(Self.iso(chunk.start)) → \(Self.iso(chunk.end))."))
                     AppLog.heartRate.warning("Discarded \(discarded) HR points outside chunk \(chunk.start, privacy: .public)-\(chunk.end, privacy: .public).")
                 }
                 let points = pointsInChunk.filter { point in
@@ -503,13 +503,13 @@ final class SyncEngine {
                 if chunk.end <= (heartRateBoundary ?? .distantPast) {
                     continue
                 }
-                recordEvent(runID: runID, level: "info", category: "hr.api", message: "Chunk HR \(Self.iso(chunk.start)) → \(Self.iso(chunk.end)): \(rawPoints.count) descargadas, \(points.count) dentro, resolución \(activeStepSeconds)s.")
+                recordEvent(runID: runID, level: "info", category: "hr.api", message: String(localized: "HR chunk \(Self.iso(chunk.start)) → \(Self.iso(chunk.end)): \(rawPoints.count) downloaded, \(points.count) inside, resolution \(activeStepSeconds)s."))
                 AppLog.heartRate.info("Downloaded \(rawPoints.count) HR points for chunk \(chunk.start, privacy: .public)-\(chunk.end, privacy: .public); \(points.count) inside chunk.")
 
                 let healthKitStart = max(chunk.start.addingTimeInterval(-TimeInterval(activeStepSeconds)), heartRateBoundary ?? .distantPast)
                 let healthKitEnd = chunk.end.addingTimeInterval(TimeInterval(activeStepSeconds))
                 let existingSamples = try await healthKit.queryHeartRateSamples(from: healthKitStart, to: healthKitEnd)
-                recordEvent(runID: runID, level: "info", category: "hr.healthkit", message: "Leídas \(existingSamples.count) muestras HR de HealthKit para chunk.")
+                recordEvent(runID: runID, level: "info", category: "hr.healthkit", message: String(localized: "Read \(existingSamples.count) HR samples from HealthKit for chunk."))
                 let reconciliation = HeartRateCoverageReconciler.plan(
                     points: points,
                     existingSamples: existingSamples.map(\.existing),
@@ -538,7 +538,8 @@ final class SyncEngine {
                     try repository.setHeartRateCheckpoint(chunk.end, resolution: activeStepSeconds)
                     confirmedHeartRateEnd = chunk.end
                 }
-                recordEvent(runID: runID, level: "info", category: "hr.write", message: "Chunk HR: escritas=\(reconciliation.pointsToWrite.count), omitidas=\(reconciliation.skippedPointCount), eliminadas=\(recordsToDelete.count), checkpoint=\(confirmedHeartRateEnd.map(Self.iso) ?? "-").")
+                let checkpoint = confirmedHeartRateEnd.map(Self.iso) ?? "-"
+                recordEvent(runID: runID, level: "info", category: "hr.write", message: String(localized: "HR chunk: written=\(reconciliation.pointsToWrite.count), skipped=\(reconciliation.skippedPointCount), removed=\(recordsToDelete.count), checkpoint=\(checkpoint)."))
             } catch {
                 if Self.isGlobalFailure(error) {
                     throw error
@@ -585,7 +586,7 @@ final class SyncEngine {
             }
 
             AppLog.heartRate.warning("HR step \(preferredStepSeconds, privacy: .public)s rejected; retrying with \(fallback, privacy: .public)s.")
-            recordEvent(runID: runID, level: "warning", category: "hr.api", message: "Resolución HR \(preferredStepSeconds)s rechazada; reintentando con \(fallback)s.")
+            recordEvent(runID: runID, level: "warning", category: "hr.api", message: String(localized: "HR resolution \(preferredStepSeconds)s rejected; retrying with \(fallback)s."))
             let points = try await api.fetchHeartRate(
                 userID: userID,
                 start: chunk.start,

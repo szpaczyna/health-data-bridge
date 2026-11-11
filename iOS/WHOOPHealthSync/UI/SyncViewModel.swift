@@ -194,7 +194,7 @@ final class SyncViewModel: ObservableObject {
         self.authStatus = runtime.authService.currentStatus()
         self.isConfigured = true
         refreshDiagnostics()
-        appendEvent("Aplicacion inicializada.")
+        appendEvent(String(localized: "App initialized."))
     }
 
     func signIn(webCookies: [String: String]) {
@@ -203,7 +203,7 @@ final class SyncViewModel: ObservableObject {
         do {
             let bundle = try authService.signIn(webCookies: webCookies)
             authStatus = .authenticated(email: bundle.email)
-            appendEvent("WHOOP autenticado.")
+            appendEvent(String(localized: "WHOOP authenticated."))
         } catch {
             let message = Self.message(error)
             authStatus = .reconnectRequired(reason: message)
@@ -216,7 +216,7 @@ final class SyncViewModel: ObservableObject {
         do {
             try authService?.disconnect()
             authStatus = .disconnected
-            appendEvent("Sesion WHOOP eliminada del Keychain.")
+            appendEvent(String(localized: "WHOOP session removed from Keychain."))
         } catch {
             errors.append(Self.message(error))
         }
@@ -225,11 +225,11 @@ final class SyncViewModel: ObservableObject {
     func synchronize() async {
         guard let healthKitService, let syncEngine else { return }
         guard !isSyncing, !isBindingAccount, !isConfiguringRecovery, !isProbingRecovery else {
-            appendEvent("Sincronizacion ignorada: ya hay una sincronizacion en curso.")
+            appendEvent(String(localized: "Sync ignored: a sync is already in progress."))
             return
         }
         guard case .authenticated = authStatus else {
-            errors.append("Conecta WHOOP antes de sincronizar.")
+            errors.append(String(localized: "Connect WHOOP before syncing."))
             return
         }
 
@@ -243,7 +243,7 @@ final class SyncViewModel: ObservableObject {
         isSyncing = true
         errors.removeAll()
         lastSummary = nil
-        appendEvent("Sincronizacion manual iniciada.")
+        appendEvent(String(localized: "Manual sync started."))
         defer {
             isSyncing = false
             refreshDiagnostics()
@@ -261,7 +261,8 @@ final class SyncViewModel: ObservableObject {
             let summary = try await task.value
             lastSummary = summary
             errors = summary.errors.map(SensitiveTextSanitizer.redact)
-            appendEvent("Sincronizacion terminada en \(String(format: "%.1f", summary.elapsedSeconds)) s.")
+            let elapsed = String(format: "%.1f", summary.elapsedSeconds)
+            appendEvent(String(localized: "Sync finished in \(elapsed) s."))
         } catch {
             lastSummary = (syncEngine as? any OperationSummaryProviding)?.latestOperationSummary
             let message = Self.message(error)
@@ -269,7 +270,7 @@ final class SyncViewModel: ObservableObject {
                 authStatus = .reconnectRequired(reason: message)
             }
             errors.append(message)
-            appendEvent("Sincronizacion fallida: \(message)")
+            appendEvent(String(localized: "Sync failed: \(message)"))
         }
     }
 
