@@ -17,6 +17,8 @@ protocol HealthDataProviding {
     func queryHeartRateSamples(from start: Date, to end: Date) async throws -> [HealthKitHeartRateSampleRecord]
     func saveHeartRatePoints(_ points: [HeartRatePoint], stepSeconds: Int) async throws
     func deleteHeartRateSamples(_ records: [HealthKitHeartRateSampleRecord]) async throws
+    func hasSleepSamples(from start: Date, to end: Date) async throws -> Bool
+    func hasHeartRateSamples(from start: Date, to end: Date) async throws -> Bool
 }
 
 @MainActor
@@ -42,6 +44,12 @@ extension SyncPersisting {
 }
 extension HealthDataProviding {
     func authorizedBoundary(for type: String) async throws -> Date? { nil }
+    func hasSleepSamples(from start: Date, to end: Date) async throws -> Bool {
+        try await !querySleepSamples(from: start, to: end).isEmpty
+    }
+    func hasHeartRateSamples(from start: Date, to end: Date) async throws -> Bool {
+        try await !queryHeartRateSamples(from: start, to: end).isEmpty
+    }
 }
 
 extension WhoopAPIClient: WhoopAPIProviding {}
@@ -300,14 +308,17 @@ final class SyncEngine {
                 missingTypes.append("Sleep Analysis")
             }
         } else {
-            let samples = try await healthKit.querySleepSamples(from: min(max(visibilityWindow.start, sleepBoundary ?? .distantPast), visibilityWindow.end), to: visibilityWindow.end)
+            // Only visibility matters here; loading every sample in the window can outlast a Shortcut's time limit.
+            let visible = try await healthKit.hasSleepSamples(from: min(max(visibilityWindow.start, sleepBoundary ?? .distantPast), visibilityWindow.end), to: visibilityWindow.end)
             recordEvent(
                 runID: runID,
-                level: samples.isEmpty ? "warning" : "info",
+                level: visible ? "info" : "warning",
                 category: "healthkit.read_guard",
-                message: String(localized: "Sleep read guard \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): \(samples.count) visible samples.")
+                message: visible
+                    ? String(localized: "Sleep read guard \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): samples visible.")
+                    : String(localized: "Sleep read guard \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): no visible samples.")
             )
-            if samples.isEmpty {
+            if !visible {
                 missingTypes.append("Sleep Analysis")
             }
         }
@@ -325,14 +336,17 @@ final class SyncEngine {
                 missingTypes.append("Heart Rate")
             }
         } else {
-            let samples = try await healthKit.queryHeartRateSamples(from: min(max(visibilityWindow.start, heartRateBoundary ?? .distantPast), visibilityWindow.end), to: visibilityWindow.end)
+            // Only visibility matters here; loading every sample in the window can outlast a Shortcut's time limit.
+            let visible = try await healthKit.hasHeartRateSamples(from: min(max(visibilityWindow.start, heartRateBoundary ?? .distantPast), visibilityWindow.end), to: visibilityWindow.end)
             recordEvent(
                 runID: runID,
-                level: samples.isEmpty ? "warning" : "info",
+                level: visible ? "info" : "warning",
                 category: "healthkit.read_guard",
-                message: String(localized: "HR read guard \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): \(samples.count) visible samples.")
+                message: visible
+                    ? String(localized: "HR read guard \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): samples visible.")
+                    : String(localized: "HR read guard \(Self.iso(visibilityWindow.start)) → \(Self.iso(visibilityWindow.end)): no visible samples.")
             )
-            if samples.isEmpty {
+            if !visible {
                 missingTypes.append("Heart Rate")
             }
         }
