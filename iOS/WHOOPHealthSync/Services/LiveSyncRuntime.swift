@@ -14,7 +14,8 @@ final class LiveSyncRuntime {
 
     private let api: WhoopAPIClient
     private let healthKitService: HealthKitService
-    private var syncInProgress = false
+    private var syncLockHolder: String?
+    private var automationTask: Task<SyncSummary, Error>?
     private let recoveryAdapter: HealthKitRecoveryAdapter
     private let recoveryPipeline: RecoverySyncPipeline
     private let syncEngine: SyncEngine
@@ -65,8 +66,7 @@ final class LiveSyncRuntime {
     }
     var recoveryAvailable: Bool { recoveryAdapter.supported }
     func authorizeRecovery() async throws -> RecoveryAuthorization {
-        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
-        syncInProgress = true; defer { syncInProgress = false }
+        try acquireSyncLock(); defer { releaseSyncLock() }
         try await recoveryAdapter.requestAuthorization()
         return try await inspectRecoveryAuthorization()
     }
@@ -85,8 +85,7 @@ final class LiveSyncRuntime {
     }
 
     func authorizeSelectedData(includeRecovery: Bool) async throws -> SyncDataAuthorization {
-        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
-        syncInProgress = true; defer { syncInProgress = false }
+        try acquireSyncLock(); defer { releaseSyncLock() }
         try repository.ensureUsable()
         var result = try await healthKitService.requestSelectedAuthorization(includeRecovery: includeRecovery && recoveryAvailable)
         result.recovery = includeRecovery && recoveryAvailable ? try await inspectRecoveryAuthorization() : nil
@@ -94,8 +93,7 @@ final class LiveSyncRuntime {
     }
 
     func saveSyncSetup(includeRecovery: Bool, fullReadConfirmed: Bool, whoopBundle: String?, now: Date) async throws {
-        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
-        syncInProgress = true; defer { syncInProgress = false }
+        try acquireSyncLock(); defer { releaseSyncLock() }
         try repository.ensureUsable()
         guard !repository.requiresManualAccountBinding else { throw SyncRepositoryError.accountBindingRequired }
         guard case let .authenticated(email) = authService.currentStatus() else { throw AutomatedSyncError.whoopNotConnected }
@@ -128,8 +126,7 @@ final class LiveSyncRuntime {
         try repository.saveSyncSetup(recovery: state, accountKey: key)
     }
     func configureRecovery(start: Date, fullReadConfirmed: Bool, whoopBundle: String?) async throws {
-        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
-        syncInProgress = true; defer { syncInProgress = false }
+        try acquireSyncLock(); defer { releaseSyncLock() }
         guard case let .authenticated(email) = authService.currentStatus() else { throw AutomatedSyncError.whoopNotConnected }
         let user = try await api.fetchCurrentUser()
         let key = WhoopRecovery.pseudonymousAccountKey(userID: user.id)
@@ -162,8 +159,7 @@ final class LiveSyncRuntime {
     }
 
     func synchronize() async throws -> SyncSummary {
-        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
-        syncInProgress = true; defer { syncInProgress = false }
+        try acquireSyncLock(); defer { releaseSyncLock() }
         operationSummary = nil
         try repository.ensureUsable()
         guard repository.hasCompletedSyncSetup else { throw AutomatedSyncError.initialManualSyncRequired }
@@ -178,8 +174,7 @@ final class LiveSyncRuntime {
     var latestOperationSummary: SyncSummary? { operationSummary }
 
     func importHistory(start: Date?) async throws -> SyncSummary {
-        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
-        syncInProgress = true; defer { syncInProgress = false }
+        try acquireSyncLock(); defer { releaseSyncLock() }
         operationSummary = nil
         try repository.ensureUsable()
         guard case let .authenticated(email) = authService.currentStatus() else { throw AutomatedSyncError.whoopNotConnected }
@@ -236,8 +231,7 @@ final class LiveSyncRuntime {
     }
 
     func importRecoveryHistory() async throws -> SyncSummary {
-        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
-        syncInProgress = true; defer { syncInProgress = false }
+        try acquireSyncLock(); defer { releaseSyncLock() }
         let started = Date()
         let user = try await api.fetchCurrentUser()
         let key = WhoopRecovery.pseudonymousAccountKey(userID: user.id)
@@ -267,8 +261,20 @@ final class LiveSyncRuntime {
     }
 
     func synchronizeFromAutomation() async throws -> SyncSummary {
-        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
-        syncInProgress = true; defer { syncInProgress = false }
+        // Shortcuts can start the intent twice at once; the second caller shares the first run.
+        if let automationTask {
+            AppLog.sync.info("Automation joined the sync already started by Shortcuts.")
+            return try await automationTask.value
+        }
+        let task = Task { @MainActor in try await self.runAutomatedSync() }
+        automationTask = task
+        defer { automationTask = nil }
+        return try await task.value
+    }
+
+    private func runAutomatedSync() async throws -> SyncSummary {
+        try await waitForSyncLock()
+        try acquireSyncLock(); defer { releaseSyncLock() }
         guard case .authenticated = authService.currentStatus() else {
             throw AutomatedSyncError.whoopNotConnected
         }
@@ -277,6 +283,28 @@ final class LiveSyncRuntime {
 
         try healthKitService.validateExistingAuthorization()
         return try await syncEngine.synchronize(recoveryMode: .recent, resumeDeferred: false)
+    }
+
+    // A background launch for the intent can coincide with another operation that releases the lock shortly after.
+    private func waitForSyncLock() async throws {
+        var attempts = 0
+        while let holder = syncLockHolder, attempts < 50 {
+            if attempts == 0 { AppLog.sync.info("Automation waiting for \(holder, privacy: .public) to release the sync lock.") }
+            attempts += 1
+            try await Task.sleep(nanoseconds: 500_000_000)
+        }
+    }
+
+    private func acquireSyncLock(_ operation: String = #function) throws {
+        if let syncLockHolder {
+            AppLog.sync.warning("Rejected \(operation, privacy: .public): \(syncLockHolder, privacy: .public) holds the sync lock.")
+            throw LiveSyncRuntimeError.syncInProgress
+        }
+        syncLockHolder = operation
+    }
+
+    private func releaseSyncLock() {
+        syncLockHolder = nil
     }
 
     static func validateAutomatedSetup(repository: SyncRepository) throws {
