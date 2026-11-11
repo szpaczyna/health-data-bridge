@@ -95,10 +95,10 @@ actor WhoopAPIClient {
         // This is a diagnostic window, not a proven boundary for historical import.
         guard let initialStart = WhoopDateCodec.date(from: "2025-12-01T00:00:00Z"),
               let initialEnd = WhoopDateCodec.date(from: "2026-01-01T00:00:00Z") else { throw RecoverySyncError.invalidTemporalAssociation }
-        var sections = ["Diagnóstico de solo lectura. No escribe en Salud ni cambia avances. Campo privado hrv_rmssd en segundos: conversión ×1000 a ms respaldada por las siete referencias WHOOP aportadas. Comparar por fecha de fin de sueño: 13/09/2026=46 ms, 14/09/2026=59 ms, 15/09/2026=48 ms. Inicio aproximado de uso declarado: diciembre de 2025; no se consulta antes de ese mes."]
+        var sections = [AppLocalization.string("Read-only diagnostic. It does not write to Health or change sync progress. The private hrv_rmssd field is in seconds: the ×1000 conversion to ms is backed by the seven WHOOP references provided. Compare by sleep end date: 2026-09-13=46 ms, 2026-09-14=59 ms, 2026-09-15=48 ms. Declared approximate start of use: December 2025; nothing before that month is queried.")]
         let windows: [(String, Date, Date, Int)] = [
-            ("Últimos siete días", end.addingTimeInterval(-7 * 86400), end, 20),
-            ("Inicio aproximado declarado: diciembre de 2025 (sondeo mensual; no demuestra exhaustividad)", initialStart, initialEnd, 10)
+            (AppLocalization.string("Last seven days"), end.addingTimeInterval(-7 * 86400), end, 20),
+            (AppLocalization.string("Declared approximate start: December 2025 (monthly probe; does not prove completeness)"), initialStart, initialEnd, 10)
         ]
         for (index, window) in windows.enumerated() {
             try Task.checkCancellation()
@@ -110,7 +110,7 @@ actor WhoopAPIClient {
             } catch {
                 try Task.checkCancellation()
                 if index == 0 { throw error }
-                sections.append(window.0 + "\nConsulta no completada; no equivale a histórico vacío.")
+                sections.append(window.0 + "\n" + AppLocalization.string("Query not completed; this does not mean the history is empty."))
             }
         }
         return sections.joined(separator: "\n\n")

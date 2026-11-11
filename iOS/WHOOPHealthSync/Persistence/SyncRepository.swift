@@ -485,9 +485,7 @@ enum SyncRepositoryError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .accountBindingRequired:
-            let preference = UserDefaults.standard.string(forKey: "appLanguage")
-            let spanish = preference == "spanish" || (preference != "english" && Locale.preferredLanguages.first?.lowercased().hasPrefix("es") == true)
-            return String(localized: "Confirm the WHOOP account for saved sync progress in Options before synchronizing.", locale: Locale(identifier: spanish ? "es" : "en"))
+            return AppLocalization.string("Confirm the WHOOP account for saved sync progress in Options before synchronizing.")
         case .storeWriteFailed: return "Local sync data could not be committed; confirmed state retained."
         case .storeUnavailable: return "Local sync data cannot be read; original store retained and synchronization blocked."
         case .unsupportedSchema: return "Local sync schema is unsupported; original store retained."

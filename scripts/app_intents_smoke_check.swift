@@ -10,14 +10,14 @@ struct AppIntentsSmokeCheck {
         summary.heartRateWritten = 120
 
         let text = SynchronizeWhoopIntent.resultText(summary)
-        precondition(text.contains("completed") || text.contains("completada"))
-        precondition(text.contains("stages=4") || text.contains("fases=4"))
-        precondition(text.contains("HR=120") || text.contains("FC=120"))
+        precondition(text.contains("Sync completed:"))
+        precondition(text.contains("stages=4"))
+        precondition(text.contains("HR=120"))
         precondition(WHOOPHealthSyncShortcuts.appShortcuts.count == 1)
 
         summary.errors = ["fixture"]
         let partialText = SynchronizeWhoopIntent.resultText(summary)
-        precondition(partialText.contains("issues") || partialText.contains("incidencias"))
+        precondition(partialText.contains("Sync completed with issues:"))
 
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("intent-setup-\(UUID())")
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -40,8 +40,8 @@ struct AppIntentsSmokeCheck {
         try LiveSyncRuntime.validateAutomatedSetup(repository: existing) // No new setup marker required.
         summary.sleepResult = .noData; summary.heartRateResult = .existing
         let differentiated = SynchronizeWhoopIntent.resultText(summary)
-        precondition(differentiated.contains("No data received") || differentiated.contains("no se recibieron datos"))
-        precondition(differentiated.contains("Data already existed") || differentiated.contains("ya existían"))
+        precondition(differentiated.contains("sleep: No data received"))
+        precondition(differentiated.contains("HR: Data already existed"))
 
         print("App Intents smoke check passed")
     }

@@ -15,59 +15,45 @@ struct SynchronizeWhoopIntent: AppIntent {
             let summary = try await LiveSyncRuntime.shared.synchronizeFromAutomation()
             let result = Self.resultText(summary)
 
-            if summary.errors.isEmpty {
-                let dialog: IntentDialog = Self.usesSpanish ? "Sincronización completada." : "Sync completed."
-                return .result(
-                    value: result,
-                    dialog: dialog
-                )
-            }
-
-            let dialog: IntentDialog = Self.usesSpanish ? "Sincronización completada con incidencias." : "Sync completed with issues."
-            return .result(
-                value: result,
-                dialog: dialog
-            )
+            let dialog = summary.errors.isEmpty
+                ? AppLocalization.string("Sync completed.")
+                : AppLocalization.string("Sync completed with issues.")
+            return .result(value: result, dialog: IntentDialog(stringLiteral: dialog))
         } catch {
             throw ShortcutSyncError.failed(Self.message(error))
         }
     }
 
     static func resultText(_ summary: SyncSummary) -> String {
-        if usesSpanish {
-            let status = summary.errors.isEmpty ? "completada" : "con incidencias"
-            return "Sincronización \(status): fases=\(summary.stagesWritten), sueño: \(dataStatus(summary.sleepResult, spanish: true)), FC=\(summary.heartRateWritten), FC: \(dataStatus(summary.heartRateResult, spanish: true)), HRV=\(summary.recovery.written), omitidas HRV=\(summary.recovery.skippedExternal), HRV: \(recoveryStatus(summary.recovery.status, spanish: true)), incidencias=\(summary.errors.count)"
-        }
-        let status = summary.errors.isEmpty ? "completed" : "completed with issues"
-        return "Sync \(status): stages=\(summary.stagesWritten), sleep: \(dataStatus(summary.sleepResult, spanish: false)), HR=\(summary.heartRateWritten), HR: \(dataStatus(summary.heartRateResult, spanish: false)), HRV=\(summary.recovery.written), skipped HRV=\(summary.recovery.skippedExternal), HRV: \(recoveryStatus(summary.recovery.status, spanish: false)), issues=\(summary.errors.count)"
+        let headline = summary.errors.isEmpty
+            ? AppLocalization.string("Sync completed")
+            : AppLocalization.string("Sync completed with issues")
+        let sleep = dataStatus(summary.sleepResult)
+        let heartRate = dataStatus(summary.heartRateResult)
+        let recovery = recoveryStatus(summary.recovery.status)
+        let details = AppLocalization.string("stages=\(summary.stagesWritten), sleep: \(sleep), HR=\(summary.heartRateWritten), HR: \(heartRate), HRV=\(summary.recovery.written), skipped HRV=\(summary.recovery.skippedExternal), HRV: \(recovery), issues=\(summary.errors.count)")
+        return "\(headline): \(details)"
     }
 
-    static func dataStatus(_ status: SyncDataResult, spanish: Bool) -> String {
-        guard spanish else { return status.rawValue }
+    static func dataStatus(_ status: SyncDataResult) -> String {
         switch status {
-        case .notAttempted: return "sin comprobar"
-        case .noData: return "no se recibieron datos"
-        case .existing: return "ya existían"
-        case .updated: return "muestras añadidas o actualizadas"
-        case .pendingAccess: return "pendiente de comprobar acceso"
-        case .failed: return "no se pudo terminar; reintenta"
+        case .notAttempted: return AppLocalization.string("Not checked")
+        case .noData: return AppLocalization.string("No data received")
+        case .existing: return AppLocalization.string("Data already existed")
+        case .updated: return AppLocalization.string("Samples added or updated")
+        case .pendingAccess: return AppLocalization.string("Pending access check")
+        case .failed: return AppLocalization.string("Could not finish; retry required")
         }
     }
 
-    static func recoveryStatus(_ status: RecoveryFlowStatus, spanish: Bool) -> String {
+    static func recoveryStatus(_ status: RecoveryFlowStatus) -> String {
         switch status {
-        case .disabled: return spanish ? "desactivada" : "disabled"
-        case .configurationPending: return spanish ? "configuración pendiente" : "configuration pending"
-        case .requiresIOS27: return spanish ? "requiere iOS 27" : "requires iOS 27"
-        case .completed: return spanish ? "completada" : "completed"
-        default: return spanish ? "pendiente/con incidencias" : "pending/with issues"
+        case .disabled: return AppLocalization.string("disabled")
+        case .configurationPending: return AppLocalization.string("configuration pending")
+        case .requiresIOS27: return AppLocalization.string("requires iOS 27")
+        case .completed: return AppLocalization.string("completed")
+        default: return AppLocalization.string("pending/with issues")
         }
-    }
-    private static var usesSpanish: Bool {
-        let preference = UserDefaults.standard.string(forKey: "appLanguage")
-        if preference == "spanish" { return true }
-        if preference == "english" { return false }
-        return Locale.preferredLanguages.first?.lowercased().hasPrefix("es") == true
     }
 
     private static func message(_ error: Error) -> String {
@@ -100,7 +86,8 @@ struct WHOOPHealthSyncShortcuts: AppShortcutsProvider {
                 "Sync \(.applicationName)",
                 "Update Apple Health with \(.applicationName)",
                 "Sincronizar \(.applicationName)",
-                "Actualizar Apple Health con \(.applicationName)"
+                "Actualizar Apple Health con \(.applicationName)",
+                "Synchronizuj \(.applicationName)"
             ],
             shortTitle: "Sync WHOOP",
             systemImageName: "arrow.triangle.2.circlepath.heart"
