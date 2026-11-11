@@ -31,21 +31,21 @@ public enum WhoopContractProbe {
 public enum WhoopRecoveryValueProbe {
     public static func report(of json: Any, expectedUserID: String, maxRows: Int = 20) -> String {
         guard let root = json as? [String: Any], let records = root["records"] as? [Any] else {
-            return "Contrato: falta records[]; no se puede comparar."
+            return "Contract: records[] missing; cannot compare."
         }
-        var lines = ["Registros recibidos: \(records.count). HRV_API en segundos; HRV_ms = HRV_API × 1000, sin redondear."]
+        var lines = ["Records received: \(records.count). HRV_API in seconds; HRV_ms = HRV_API × 1000, unrounded."]
         for key in ["next_token", "nextToken", "next_cursor", "nextCursor", "next", "has_more", "hasMore", "total_count", "total"] where root[key] != nil {
             let value = root[key]!
-            let status = value is NSNull ? "null" : (flag(value).map { $0 ? "true" : "false" } ?? "presente (valor oculto)")
-            lines.append("Paginación \(key): \(status)")
+            let status = value is NSNull ? "null" : (flag(value).map { $0 ? "true" : "false" } ?? "present (value hidden)")
+            lines.append("Pagination \(key): \(status)")
         }
         if !root.keys.contains(where: { ["next_token", "nextToken", "next_cursor", "nextCursor", "next", "has_more", "hasMore", "total_count", "total"].contains($0) }) {
-            lines.append("Sin señal de fin/paginación reconocida. Una ventana vacía no demuestra fin del histórico.")
+            lines.append("No recognized end/pagination signal. An empty window does not prove the end of history.")
         }
         let boundedRows = max(0, min(maxRows, 50))
         for (index, raw) in records.prefix(boundedRows).enumerated() {
             guard let record = raw as? [String: Any], let recovery = record["recovery"] as? [String: Any] else {
-                lines.append("Fila \(index + 1): sin recuperación reconocida."); continue
+                lines.append("Row \(index + 1): no recognized recovery."); continue
             }
             let cycle = record["cycle"] as? [String: Any] ?? [:]
             let userMatches = numericID(cycle["user_id"]) == expectedUserID && numericID(recovery["user_id"]) == expectedUserID
@@ -60,19 +60,19 @@ public enum WhoopRecoveryValueProbe {
             let zone = timeZone(sleep["timezone_offset"] ?? cycle["timezone_offset"])
             let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.dateFormat = "yyyy-MM-dd HH:mm:ss Z"; formatter.timeZone = zone ?? TimeZone(secondsFromGMT: 0)!
-            let end = range.map { formatter.string(from: $0.end) } ?? "no reconocido"
-            let start = range.map { formatter.string(from: $0.start) } ?? "no reconocido"
+            let end = range.map { formatter.string(from: $0.end) } ?? "unrecognized"
+            let start = range.map { formatter.string(from: $0.start) } ?? "unrecognized"
             let value = number(recovery["hrv_rmssd"])
-            let valueText = value.map { String($0) } ?? "inválido/nulo (booleanos rechazados)"
-            let milliseconds = value.map { $0 * 1000 }.flatMap { $0.isFinite ? String($0) : nil } ?? "inválido/nulo"
-            let nap = flag(sleep["is_nap"]).map { $0 ? "sí" : "no" } ?? "desconocida"
-            let calibration = flag(recovery["calibrating"]).map { $0 ? "sí" : "no" } ?? "desconocida"
+            let valueText = value.map { String($0) } ?? "invalid/null (booleans rejected)"
+            let milliseconds = value.map { $0 * 1000 }.flatMap { $0.isFinite ? String($0) : nil } ?? "invalid/null"
+            let nap = flag(sleep["is_nap"]).map { $0 ? "yes" : "no" } ?? "unknown"
+            let calibration = flag(recovery["calibrating"]).map { $0 ? "yes" : "no" } ?? "unknown"
             let state = enumLabel(recovery["state"])
-            let update = WhoopDateCodec.date(from: recovery["updated_at"]).map { formatter.string(from: $0) } ?? "no reconocida"
-            lines.append("Fila \(index + 1): cuenta=\(userMatches ? "coincide" : "NO VERIFICADA"); ciclo_ID=\(cycleIDValid ? "válido" : "inválido"); enlace_sueño=\(sleeps.count == 1 ? "único" : "ausente/ambiguo"); zona=\(zone == nil ? "NO RECONOCIDA (fechas UTC)" : "offset reconocido")")
-            lines.append("inicio=\(start); fin=\(end); siesta=\(nap); HRV_API=\(valueText); HRV_ms=\(milliseconds); estado=\(state); calibrando=\(calibration); actualización=\(update)")
+            let update = WhoopDateCodec.date(from: recovery["updated_at"]).map { formatter.string(from: $0) } ?? "unrecognized"
+            lines.append("Row \(index + 1): account=\(userMatches ? "matches" : "NOT VERIFIED"); cycle_ID=\(cycleIDValid ? "valid" : "invalid"); sleep_link=\(sleeps.count == 1 ? "unique" : "missing/ambiguous"); zone=\(zone == nil ? "UNRECOGNIZED (UTC dates)" : "recognized offset")")
+            lines.append("start=\(start); end=\(end); nap=\(nap); HRV_API=\(valueText); HRV_ms=\(milliseconds); state=\(state); calibrating=\(calibration); updated=\(update)")
         }
-        if records.count > boundedRows { lines.append("Salida limitada a \(boundedRows) filas; no es una enumeración completa.") }
+        if records.count > boundedRows { lines.append("Output limited to \(boundedRows) rows; not a complete enumeration.") }
         return lines.joined(separator: "\n")
     }
     private static func number(_ raw: Any?) -> Double? {
@@ -90,7 +90,7 @@ public enum WhoopRecoveryValueProbe {
         if n.doubleValue == 0 { return false }; if n.doubleValue == 1 { return true }; return nil
     }
     private static func enumLabel(_ raw: Any?) -> String {
-        guard let s = raw as? String, s.range(of: "^[A-Za-z_]{1,32}$", options: .regularExpression) != nil else { return "no reconocido (valor oculto)" }
+        guard let s = raw as? String, s.range(of: "^[A-Za-z_]{1,32}$", options: .regularExpression) != nil else { return "unrecognized (value hidden)" }
         return s
     }
     private static func timeZone(_ raw: Any?) -> TimeZone? {

@@ -11,6 +11,27 @@ enum AppLog {
     static let sync = Logger(subsystem: "WHOOPHealthSync", category: "sync")
 }
 
+enum AppLocalization {
+    /// Same resolution as AppLanguage.locale, for code that runs outside the SwiftUI environment.
+    static var locale: Locale {
+        switch UserDefaults.standard.string(forKey: "appLanguage") {
+        case "english": return Locale(identifier: "en")
+        case "spanish": return Locale(identifier: "es")
+        case "polish": return Locale(identifier: "pl")
+        default:
+            let preferred = Locale.preferredLanguages.first?.lowercased() ?? "en"
+            if preferred.hasPrefix("es") { return Locale(identifier: "es") }
+            if preferred.hasPrefix("pl") { return Locale(identifier: "pl") }
+            return Locale(identifier: "en")
+        }
+    }
+
+    // String(localized:locale:) only formats with the locale; a resource locale also selects the .lproj table.
+    static func string(_ key: String.LocalizationValue, locale: Locale = AppLocalization.locale) -> String {
+        String(localized: LocalizedStringResource(key, locale: locale))
+    }
+}
+
 enum SensitiveTextSanitizer {
     static func redact(_ text: String) -> String {
         var output = text

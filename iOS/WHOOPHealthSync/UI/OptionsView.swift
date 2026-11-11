@@ -34,7 +34,7 @@ struct OptionsView: View {
             Section("Data to sync") {
                 Label("Sleep", systemImage: "moon.zzz.fill")
                 Label("Heart rate", systemImage: "heart.fill")
-                Text("Recovery HRV")
+                Label("Recovery HRV", systemImage: "waveform.path.ecg")
                 Text(LocalizedStringKey(viewModel.recoveryStatusKey))
                     .accessibilityIdentifier("recovery.status")
                 Text("Imports the HRV measured during the main sleep, not the WHOOP recovery percentage. Subsequent syncs review the last seven days. No daytime readings are generated.")
@@ -201,7 +201,9 @@ struct SyncSetupView: View {
                 Section("Data to sync") {
                     Label("Sleep", systemImage: "moon.zzz.fill")
                     Label("Heart rate", systemImage: "heart.fill")
-                    Toggle("Recovery HRV", isOn: $includeRecovery)
+                    Toggle(isOn: $includeRecovery) {
+                        Label("Recovery HRV", systemImage: "waveform.path.ecg")
+                    }
                         .disabled(!viewModel.supportsRecovery || viewModel.isConfiguringRecovery)
                         .accessibilityIdentifier("sync.includeHRV")
                     if !viewModel.supportsRecovery { Text("Requires iOS 27 and support for RMSSD HRV").foregroundStyle(.secondary) }
@@ -531,18 +533,17 @@ struct SyncActivityView: View {
     }
 
     private func localizedStatus(_ status: String?) -> String {
-        let usesSpanish = locale.language.languageCode?.identifier == "es"
         switch status {
         case "success":
-            return usesSpanish ? "completada" : "completed"
+            return AppLocalization.string("completed", locale: locale)
         case "partial":
-            return usesSpanish ? "con incidencias" : "with issues"
+            return AppLocalization.string("with issues", locale: locale)
         case "failed":
-            return usesSpanish ? "fallida" : "failed"
+            return AppLocalization.string("failed", locale: locale)
         case "running":
-            return usesSpanish ? "en curso" : "in progress"
+            return AppLocalization.string("in progress", locale: locale)
         default:
-            return usesSpanish ? "desconocida" : "unknown"
+            return AppLocalization.string("unknown", locale: locale)
         }
     }
 

@@ -65,7 +65,7 @@ final class LiveSyncRuntime {
     }
     var recoveryAvailable: Bool { recoveryAdapter.supported }
     func authorizeRecovery() async throws -> RecoveryAuthorization {
-        guard !syncInProgress else { throw RecoverySyncError.unavailable }
+        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
         syncInProgress = true; defer { syncInProgress = false }
         try await recoveryAdapter.requestAuthorization()
         return try await inspectRecoveryAuthorization()
@@ -85,7 +85,7 @@ final class LiveSyncRuntime {
     }
 
     func authorizeSelectedData(includeRecovery: Bool) async throws -> SyncDataAuthorization {
-        guard !syncInProgress else { throw RecoverySyncError.unavailable }
+        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
         syncInProgress = true; defer { syncInProgress = false }
         try repository.ensureUsable()
         var result = try await healthKitService.requestSelectedAuthorization(includeRecovery: includeRecovery && recoveryAvailable)
@@ -94,7 +94,7 @@ final class LiveSyncRuntime {
     }
 
     func saveSyncSetup(includeRecovery: Bool, fullReadConfirmed: Bool, whoopBundle: String?, now: Date) async throws {
-        guard !syncInProgress else { throw RecoverySyncError.unavailable }
+        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
         syncInProgress = true; defer { syncInProgress = false }
         try repository.ensureUsable()
         guard !repository.requiresManualAccountBinding else { throw SyncRepositoryError.accountBindingRequired }
@@ -128,7 +128,7 @@ final class LiveSyncRuntime {
         try repository.saveSyncSetup(recovery: state, accountKey: key)
     }
     func configureRecovery(start: Date, fullReadConfirmed: Bool, whoopBundle: String?) async throws {
-        guard !syncInProgress else { throw RecoverySyncError.unavailable }
+        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
         syncInProgress = true; defer { syncInProgress = false }
         guard case let .authenticated(email) = authService.currentStatus() else { throw AutomatedSyncError.whoopNotConnected }
         let user = try await api.fetchCurrentUser()
@@ -162,7 +162,7 @@ final class LiveSyncRuntime {
     }
 
     func synchronize() async throws -> SyncSummary {
-        guard !syncInProgress else { throw RecoverySyncError.unavailable }
+        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
         syncInProgress = true; defer { syncInProgress = false }
         operationSummary = nil
         try repository.ensureUsable()
@@ -178,7 +178,7 @@ final class LiveSyncRuntime {
     var latestOperationSummary: SyncSummary? { operationSummary }
 
     func importHistory(start: Date?) async throws -> SyncSummary {
-        guard !syncInProgress else { throw RecoverySyncError.unavailable }
+        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
         syncInProgress = true; defer { syncInProgress = false }
         operationSummary = nil
         try repository.ensureUsable()
@@ -236,7 +236,7 @@ final class LiveSyncRuntime {
     }
 
     func importRecoveryHistory() async throws -> SyncSummary {
-        guard !syncInProgress else { throw RecoverySyncError.unavailable }
+        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
         syncInProgress = true; defer { syncInProgress = false }
         let started = Date()
         let user = try await api.fetchCurrentUser()
@@ -267,7 +267,7 @@ final class LiveSyncRuntime {
     }
 
     func synchronizeFromAutomation() async throws -> SyncSummary {
-        guard !syncInProgress else { throw RecoverySyncError.unavailable }
+        guard !syncInProgress else { throw LiveSyncRuntimeError.syncInProgress }
         syncInProgress = true; defer { syncInProgress = false }
         guard case .authenticated = authService.currentStatus() else {
             throw AutomatedSyncError.whoopNotConnected
@@ -287,6 +287,14 @@ final class LiveSyncRuntime {
         guard checkpoints.lastSleepQueryEnd != nil, checkpoints.lastHeartRateEnd != nil else {
             throw AutomatedSyncError.initialManualSyncRequired
         }
+    }
+}
+
+enum LiveSyncRuntimeError: Error, LocalizedError {
+    case syncInProgress
+
+    var errorDescription: String? {
+        String(localized: "Another HealthDataBridge sync is still running. Try again when it finishes.")
     }
 }
 

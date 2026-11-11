@@ -138,12 +138,12 @@ struct WhoopAPISmokeCheck {
         expect(probeRequests[1].query["startTime"] == WhoopDateCodec.isoString(iso("2025-12-01T00:00:00Z")), "Historical probe must start in the declared month, not one or three years ago.")
         expect(probeRequests[1].query["endTime"] == WhoopDateCodec.isoString(iso("2026-01-01T00:00:00Z")), "Initial-month diagnostic must include all of December, including late-month starters.")
         expect(probeRequests.allSatisfy { $0.query["limit"] == "50" && $0.headers["Authorization"] == "Bearer fresh-access" }, "Diagnostic should remain bounded and reuse the current private session.")
-        expect(probe.contains("ventana vacía no demuestra fin"), "Empty initial month must not imply historical completion.")
+        expect(probe.contains("empty window does not prove the end"), "Empty initial month must not imply historical completion.")
         expect(!MockWhoopURLProtocol.requests.contains { $0.path.contains("deep-dive") || $0.path.contains("sleep-events") || $0.path.contains("metrics") }, "Recovery diagnostic must not trigger legacy sleep/HR fallbacks.")
         MockWhoopURLProtocol.clearRequests()
         MockWhoopURLProtocol.initialMonthStatusCode = 503
         let unavailableMonth = try await client.probeRecoveryValues()
-        expect(unavailableMonth.contains("Consulta no completada; no equivale a histórico vacío"), "A historical API failure must remain distinct from an empty window.")
+        expect(unavailableMonth.contains("Query not completed; this does not mean the history is empty"), "A historical API failure must remain distinct from an empty window.")
         expect(!unavailableMonth.contains("sensitive-month-error"), "Diagnostic should not expose server error payloads.")
         MockWhoopURLProtocol.initialMonthStatusCode = 200
 
