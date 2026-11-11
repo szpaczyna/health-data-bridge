@@ -233,9 +233,11 @@
 "WHOOP user authenticated; ID received." = "Usuario WHOOP autenticado; ID recibido.";
 "Sync finished: %@. Sleeps downloaded=%lld, stages written=%lld, HR downloaded=%lld, HR written=%lld, errors=%lld." = "Fin de sync: %@. Sueños descargados=%lld, fases escritas=%lld, HR descargadas=%lld, HR escritas=%lld, errores=%lld.";
 "Sleep read preflight %@ → %@: %lld visible samples, external=%lld." = "Preflight lectura sueño %@ → %@: %lld muestras visibles, externas=%lld.";
-"Sleep read guard %@ → %@: %lld visible samples." = "Guardia lectura sueño %@ → %@: %lld muestras visibles.";
+"Sleep read guard %@ → %@: samples visible." = "Guardia lectura sueño %@ → %@: hay muestras visibles.";
+"Sleep read guard %@ → %@: no visible samples." = "Guardia lectura sueño %@ → %@: sin muestras visibles.";
 "HR read preflight %@ → %@: %lld visible samples, external=%lld." = "Preflight lectura HR %@ → %@: %lld muestras visibles, externas=%lld.";
-"HR read guard %@ → %@: %lld visible samples." = "Guardia lectura HR %@ → %@: %lld muestras visibles.";
+"HR read guard %@ → %@: samples visible." = "Guardia lectura HR %@ → %@: hay muestras visibles.";
+"HR read guard %@ → %@: no visible samples." = "Guardia lectura HR %@ → %@: sin muestras visibles.";
 "Downloaded %lld sleep IDs for %@ → %@." = "Descargados %lld IDs de sueño para %@ → %@.";
 "Sleep discarded outside window: %@." = "Sueño descartado fuera de ventana: %@.";
 "Read %lld HealthKit samples for sleep %@." = "Leídas %lld muestras HealthKit para sueño %@.";

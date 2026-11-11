@@ -233,9 +233,11 @@
 "WHOOP user authenticated; ID received." = "Uwierzytelniono użytkownika WHOOP; otrzymano ID.";
 "Sync finished: %@. Sleeps downloaded=%lld, stages written=%lld, HR downloaded=%lld, HR written=%lld, errors=%lld." = "Koniec synchronizacji: %@. Pobrane sny=%lld, zapisane fazy=%lld, pobrane HR=%lld, zapisane HR=%lld, błędy=%lld.";
 "Sleep read preflight %@ → %@: %lld visible samples, external=%lld." = "Wstępny odczyt snu %@ → %@: widoczne próbki: %lld, zewnętrzne=%lld.";
-"Sleep read guard %@ → %@: %lld visible samples." = "Kontrola odczytu snu %@ → %@: widoczne próbki: %lld.";
+"Sleep read guard %@ → %@: samples visible." = "Kontrola odczytu snu %@ → %@: próbki są widoczne.";
+"Sleep read guard %@ → %@: no visible samples." = "Kontrola odczytu snu %@ → %@: brak widocznych próbek.";
 "HR read preflight %@ → %@: %lld visible samples, external=%lld." = "Wstępny odczyt HR %@ → %@: widoczne próbki: %lld, zewnętrzne=%lld.";
-"HR read guard %@ → %@: %lld visible samples." = "Kontrola odczytu HR %@ → %@: widoczne próbki: %lld.";
+"HR read guard %@ → %@: samples visible." = "Kontrola odczytu HR %@ → %@: próbki są widoczne.";
+"HR read guard %@ → %@: no visible samples." = "Kontrola odczytu HR %@ → %@: brak widocznych próbek.";
 "Downloaded %lld sleep IDs for %@ → %@." = "Pobrano ID snów (%lld) dla %@ → %@.";
 "Sleep discarded outside window: %@." = "Odrzucono sen spoza okna: %@.";
 "Read %lld HealthKit samples for sleep %@." = "Odczytano próbki HealthKit (%lld) dla snu %@.";

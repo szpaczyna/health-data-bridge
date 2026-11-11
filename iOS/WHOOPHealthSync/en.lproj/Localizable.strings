@@ -233,9 +233,11 @@
 "WHOOP user authenticated; ID received." = "WHOOP user authenticated; ID received.";
 "Sync finished: %@. Sleeps downloaded=%lld, stages written=%lld, HR downloaded=%lld, HR written=%lld, errors=%lld." = "Sync finished: %@. Sleeps downloaded=%lld, stages written=%lld, HR downloaded=%lld, HR written=%lld, errors=%lld.";
 "Sleep read preflight %@ → %@: %lld visible samples, external=%lld." = "Sleep read preflight %@ → %@: %lld visible samples, external=%lld.";
-"Sleep read guard %@ → %@: %lld visible samples." = "Sleep read guard %@ → %@: %lld visible samples.";
+"Sleep read guard %@ → %@: samples visible." = "Sleep read guard %@ → %@: samples visible.";
+"Sleep read guard %@ → %@: no visible samples." = "Sleep read guard %@ → %@: no visible samples.";
 "HR read preflight %@ → %@: %lld visible samples, external=%lld." = "HR read preflight %@ → %@: %lld visible samples, external=%lld.";
-"HR read guard %@ → %@: %lld visible samples." = "HR read guard %@ → %@: %lld visible samples.";
+"HR read guard %@ → %@: samples visible." = "HR read guard %@ → %@: samples visible.";
+"HR read guard %@ → %@: no visible samples." = "HR read guard %@ → %@: no visible samples.";
 "Downloaded %lld sleep IDs for %@ → %@." = "Downloaded %lld sleep IDs for %@ → %@.";
 "Sleep discarded outside window: %@." = "Sleep discarded outside window: %@.";
 "Read %lld HealthKit samples for sleep %@." = "Read %lld HealthKit samples for sleep %@.";

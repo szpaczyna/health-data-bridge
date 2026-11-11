@@ -181,12 +181,24 @@ final class HealthKitService {
         AppLog.healthKit.info("Deleted \(records.count) app-owned heart-rate samples from HealthKit.")
     }
 
-    private func runSampleQuery<T: HKSample>(sampleType: HKSampleType, predicate: NSPredicate) async throws -> [T] {
+    func hasSleepSamples(from start: Date, to end: Date) async throws -> Bool {
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let samples: [HKCategorySample] = try await runSampleQuery(sampleType: sleepType, predicate: predicate, limit: 1)
+        return !samples.isEmpty
+    }
+
+    func hasHeartRateSamples(from start: Date, to end: Date) async throws -> Bool {
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let samples: [HKQuantitySample] = try await runSampleQuery(sampleType: heartRateType, predicate: predicate, limit: 1)
+        return !samples.isEmpty
+    }
+
+    private func runSampleQuery<T: HKSample>(sampleType: HKSampleType, predicate: NSPredicate, limit: Int = HKObjectQueryNoLimit) async throws -> [T] {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[T], Error>) in
             let query = HKSampleQuery(
                 sampleType: sampleType,
                 predicate: predicate,
-                limit: HKObjectQueryNoLimit,
+                limit: limit,
                 sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
             ) { _, samples, error in
                 if let error {
