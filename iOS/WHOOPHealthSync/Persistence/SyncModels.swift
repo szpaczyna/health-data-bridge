@@ -51,11 +51,15 @@ struct SleepSyncRecord: Codable, Equatable {
     }
 }
 
+enum SyncRunStatus: String, Codable {
+    case running, success, partial, failed, cancelled, unknown
+}
+
 struct SyncRunRecord: Codable, Equatable, Identifiable {
     var id: UUID
     var startedAt: Date
     var finishedAt: Date?
-    var status: String
+    var status: SyncRunStatus
     var heartRateWindowStart: Date?
     var heartRateWindowEnd: Date?
     var sleepWindowStart: Date?
@@ -124,7 +128,7 @@ struct SyncRunRecord: Codable, Equatable, Identifiable {
     init(startedAt: Date) {
         self.id = UUID()
         self.startedAt = startedAt
-        self.status = "running"
+        self.status = .running
         self.sleepsDownloaded = 0
         self.sleepsWritten = 0
         self.sleepsUnchanged = 0
@@ -151,7 +155,7 @@ struct SyncRunRecord: Codable, Equatable, Identifiable {
         self.id = try container.decode(UUID.self, forKey: .id)
         self.startedAt = try container.decode(Date.self, forKey: .startedAt)
         self.finishedAt = try container.decodeIfPresent(Date.self, forKey: .finishedAt)
-        self.status = try container.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
+        self.status = try container.decodeIfPresent(String.self, forKey: .status).flatMap(SyncRunStatus.init(rawValue:)) ?? .unknown
         self.heartRateWindowStart = try container.decodeIfPresent(Date.self, forKey: .heartRateWindowStart)
         self.heartRateWindowEnd = try container.decodeIfPresent(Date.self, forKey: .heartRateWindowEnd)
         self.sleepWindowStart = try container.decodeIfPresent(Date.self, forKey: .sleepWindowStart)
@@ -292,7 +296,7 @@ struct SyncDiagnostics: Equatable {
     var heartRateResolution: Int?
     var lastRunStartedAt: Date?
     var lastRunFinishedAt: Date?
-    var lastRunStatus: String?
+    var lastRunStatus: SyncRunStatus?
     var lastRunErrorsText: String
     var recordedSleepCount: Int
     var recentEvents: [SyncEventRecord]

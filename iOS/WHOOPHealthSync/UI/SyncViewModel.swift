@@ -421,7 +421,7 @@ final class SyncViewModel: ObservableObject {
             "- Heart-rate resolution: \(diagnostics.heartRateResolution.map { "\($0) s" } ?? "-")",
             "- Last run started: \(Self.isoOrDash(diagnostics.lastRunStartedAt))",
             "- Last run finished: \(Self.isoOrDash(diagnostics.lastRunFinishedAt))",
-            "- Last run status: \(diagnostics.lastRunStatus ?? "-")",
+            "- Last run status: \(diagnostics.lastRunStatus?.rawValue ?? "-")",
             "- Last run errors: \(diagnostics.lastRunErrorsText.isEmpty ? "-" : SensitiveTextSanitizer.redact(diagnostics.lastRunErrorsText))",
             "- Recorded sleep count: \(diagnostics.recordedSleepCount)",
             "",

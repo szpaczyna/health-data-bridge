@@ -65,7 +65,7 @@ struct RepositorySmokeCheck {
             category: "smoke",
             message: "repository event for jose@example.com Authorization: Bearer secret-token password=secret-password"
         )
-        try repository.finishRun(runID, summary: summary, status: "partial")
+        try repository.finishRun(runID, summary: summary, status: .partial)
 
         let reloaded = SyncRepository(fileURL: fileURL)
         try expect(
@@ -81,7 +81,7 @@ struct RepositorySmokeCheck {
         expect(diagnostics.lastHeartRateCheckpoint == date(100), "Diagnostics should expose HR checkpoint.")
         expect(diagnostics.lastSleepCheckpoint == date(200), "Diagnostics should expose sleep checkpoint.")
         expect(diagnostics.heartRateResolution == 6, "Diagnostics should expose HR resolution.")
-        expect(diagnostics.lastRunStatus == "partial", "Diagnostics should expose last run status.")
+        expect(diagnostics.lastRunStatus == .partial, "Diagnostics should expose last run status.")
         expect(diagnostics.lastRunErrorsText.contains("[redacted-email]"), "Diagnostics should expose sanitized last-run errors.")
         expect(diagnostics.lastRunErrorsText.contains("Bearer [redacted-token]"), "Diagnostics should redact bearer tokens in last-run errors.")
         expect(!diagnostics.lastRunErrorsText.contains("secret-password"), "Diagnostics should redact passwords in last-run errors.")
@@ -157,10 +157,26 @@ struct RepositorySmokeCheck {
         """
         try Data(legacyJSON.utf8).write(to: legacyURL, options: [.atomic])
         let legacyRepository = SyncRepository(fileURL: legacyURL)
-        expect(legacyRepository.diagnostics().lastRunStatus == "success", "Repository should load legacy run records that lack newer counters.")
+        expect(legacyRepository.diagnostics().lastRunStatus == .success, "Repository should load legacy run records that lack newer counters.")
         expect(legacyRepository.diagnostics().recentEvents.isEmpty, "Repository should load legacy stores that lack events.")
         let legacyRun = legacyRepository.latestFinishedRun()
         expect(legacyRun?.sleepResult == .notAttempted && legacyRun?.heartRateResult == .notAttempted, "Legacy runs without phase results should decode as not attempted.")
+
+        let statusJSON = """
+        [
+          {"id": "00000000-0000-0000-0000-000000000002", "startedAt": "1970-01-01T00:00:00Z", "status": "success"},
+          {"id": "00000000-0000-0000-0000-000000000003", "startedAt": "1970-01-01T00:00:00Z", "status": "partial"},
+          {"id": "00000000-0000-0000-0000-000000000004", "startedAt": "1970-01-01T00:00:00Z", "status": "bogus"}
+        ]
+        """
+        let statusDecoder = JSONDecoder()
+        statusDecoder.dateDecodingStrategy = .iso8601
+        let statusRuns = try statusDecoder.decode([SyncRunRecord].self, from: Data(statusJSON.utf8))
+        expect(statusRuns.map(\.status) == [.success, .partial, .unknown], "Legacy string statuses should decode to matching cases and unknown strings to unknown.")
+        let statusEncoder = JSONEncoder()
+        statusEncoder.dateEncodingStrategy = .iso8601
+        let encodedRuns = try JSONSerialization.jsonObject(with: statusEncoder.encode(statusRuns)) as? [[String: Any]] ?? []
+        expect(encodedRuns.map { $0["status"] as? String } == ["success", "partial", "unknown"], "Run statuses should re-encode as raw strings.")
 
         let resultsDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("WHOOPHealthSyncRepositoryResults-\(UUID().uuidString)", isDirectory: true)
@@ -201,7 +217,7 @@ struct RepositorySmokeCheck {
         resultsSummary.sleepQueryWindowEnd = resultsSleepWindow.end
         resultsSummary.elapsedSeconds = 2.5
         resultsSummary.errors = ["first failure", "second failure"]
-        try resultsRepository.finishRun(resultsRunID, summary: resultsSummary, status: "partial")
+        try resultsRepository.finishRun(resultsRunID, summary: resultsSummary, status: .partial)
         _ = try resultsRepository.createRun(startedAt: date(6_000), plan: resultsPlan)
         let resultsReloaded = SyncRepository(fileURL: resultsURL)
         let resultsRun = resultsReloaded.latestFinishedRun()
@@ -228,15 +244,15 @@ struct RepositorySmokeCheck {
             )
             var runSummary = SyncSummary()
             runSummary.sleepsDownloaded = offset
-            try boundedRepository.finishRun(run, summary: runSummary, status: "success-\(offset)")
+            try boundedRepository.finishRun(run, summary: runSummary, status: .success)
         }
         let boundedJSON = try Data(contentsOf: boundedURL)
         let boundedObject = try JSONSerialization.jsonObject(with: boundedJSON, options: []) as? [String: Any]
         let boundedRuns = boundedObject?["runs"] as? [[String: Any]] ?? []
         expect(boundedRuns.count == 100, "Repository should keep a bounded run history.")
         let boundedDiagnostics = boundedRepository.diagnostics()
-        expect(boundedDiagnostics.lastRunStatus == "success-124", "Bounded run trimming should retain the newest run for diagnostics.")
-        expect(!boundedRuns.contains { $0["status"] as? String == "success-0" }, "Bounded run trimming should remove oldest runs first.")
+        expect(boundedDiagnostics.lastRunStartedAt == date(124), "Bounded run trimming should retain the newest run for diagnostics.")
+        expect(!boundedRuns.contains { $0["sleepsDownloaded"] as? Int == 0 }, "Bounded run trimming should remove oldest runs first.")
 
         // V2 failures must preserve both the original bytes and the committed memory snapshot.
         let corruptURL = directory.appendingPathComponent("corrupt.json")

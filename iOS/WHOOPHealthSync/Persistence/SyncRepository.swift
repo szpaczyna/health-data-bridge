@@ -229,7 +229,7 @@ final class SyncRepository {
     }
 
     func latestFinishedRun() -> SyncRunRecord? {
-        snapshot.runs.filter { $0.status != "running" }.max { $0.startedAt < $1.startedAt }
+        snapshot.runs.filter { $0.status != .running }.max { $0.startedAt < $1.startedAt }
     }
 
     func appendEvent(runID: UUID?, level: String, category: String, message: String) throws {
@@ -364,7 +364,7 @@ final class SyncRepository {
         return run.id
     }
 
-    func finishRun(_ runID: UUID, summary: SyncSummary, status: String) throws {
+    func finishRun(_ runID: UUID, summary: SyncSummary, status: SyncRunStatus) throws {
         guard let index = snapshot.runs.firstIndex(where: { $0.id == runID }) else {
             throw SyncRepositoryError.missingRun(runID)
         }

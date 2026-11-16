@@ -217,7 +217,7 @@ struct SyncEngineSmokeCheck {
         expect(!combinedText.contains("header.payload.signature"), "SyncEngine should redact JWT-like values before summary/events.")
         expect(combinedText.contains("[redacted-email]"), "Sanitized summary/events should show email redaction marker.")
         expect(combinedText.contains("Bearer [redacted-token]"), "Sanitized summary/events should show bearer redaction marker.")
-        expect(repository.diagnostics().lastRunStatus == "partial", "A non-auth HR failure after sleep pipeline should remain a partial run.")
+        expect(repository.diagnostics().lastRunStatus == .partial, "A non-auth HR failure after sleep pipeline should remain a partial run.")
         expect(repository.diagnostics().lastRunErrorsText.contains("[redacted-email]"), "Partial run diagnostics should preserve sanitized error text after sync.")
         expect(repository.diagnostics().lastRunErrorsText.contains("Bearer [redacted-token]"), "Partial run diagnostics should redact token material in persisted error text.")
     }
@@ -353,7 +353,7 @@ struct SyncEngineSmokeCheck {
         let checkpoints = try repository.checkpoints()
         expect(checkpoints.lastSleepQueryEnd != nil, "Completed sleep pipeline should keep its checkpoint before a later auth failure.")
         expect(checkpoints.lastHeartRateEnd == nil, "Failed HR auth should not advance the HR checkpoint.")
-        expect(repository.diagnostics().lastRunStatus == "failed", "Auth failure should mark the run as failed.")
+        expect(repository.diagnostics().lastRunStatus == .failed, "Auth failure should mark the run as failed.")
     }
 
     @MainActor
@@ -436,7 +436,7 @@ struct SyncEngineSmokeCheck {
         expect(checkpoints.lastHeartRateEnd == nil, "Read preflight failure should not advance HR checkpoint.")
         expect(health.savedSleepFragmentCount == 0, "Read preflight failure should stop before saving sleep.")
         expect(health.savedHeartRatePointCount == 0, "Read preflight failure should stop before saving HR.")
-        expect(repository.diagnostics().lastRunStatus == "failed", "Read preflight failure should mark the run failed.")
+        expect(repository.diagnostics().lastRunStatus == .failed, "Read preflight failure should mark the run failed.")
     }
 
     @MainActor
@@ -533,7 +533,7 @@ struct SyncEngineSmokeCheck {
         expect(health.savedSleepFragmentCount == 0, "Ongoing read guard should stop before saving sleep.")
         expect(health.savedHeartRatePointCount == 0, "Ongoing read guard should stop before saving HR.")
         expect(api.currentUserRequestCount == 1, "Account identity must be checked before reusing checkpoints, even when the read guard then fails.")
-        expect(repository.diagnostics().lastRunStatus == "failed", "Ongoing read guard failure should mark the run failed.")
+        expect(repository.diagnostics().lastRunStatus == .failed, "Ongoing read guard failure should mark the run failed.")
     }
 
 
@@ -624,7 +624,7 @@ struct SyncEngineSmokeCheck {
         expect(limited.stagesWritten == 0, "A night crossing the boundary must be deferred whole.")
         expect(limited.heartRateWritten == 1, "Only fully authorized HR buckets may be written.")
         expect(limited.hasIncompleteResults, "Confirmed HR writes do not certify phases blocked by limited reading.")
-        expect(repository.diagnostics().lastRunStatus == "partial", "Limited reading must persist a partial run even without global errors.")
+        expect(repository.diagnostics().lastRunStatus == .partial, "Limited reading must persist a partial run even without global errors.")
         try expect(try repository.deferredWindow(for: "sleep") != nil, "Deferred sleep must persist.")
         try expect(try repository.deferredWindow(for: "heartRate") != nil, "Deferred HR must persist.")
         health.sleepBoundary = nil; health.heartRateBoundary = nil
@@ -646,7 +646,7 @@ struct SyncEngineSmokeCheck {
         catch { expect(error is CancellationError, "Cancellation must retain its identity.") }
         try expect(try repo.checkpoints().lastSleepQueryEnd == nil, "Cancelled flow cannot advance checkpoint.")
         expect(health.heartRateQueryWindows.isEmpty, "Global cancellation stops subsequent flows.")
-        expect(repo.diagnostics().lastRunStatus == "cancelled", "Cancellation must not appear completed.")
+        expect(repo.diagnostics().lastRunStatus == .cancelled, "Cancellation must not appear completed.")
     }
 
     @MainActor
