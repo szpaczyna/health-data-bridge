@@ -159,6 +159,55 @@ struct RepositorySmokeCheck {
         let legacyRepository = SyncRepository(fileURL: legacyURL)
         expect(legacyRepository.diagnostics().lastRunStatus == "success", "Repository should load legacy run records that lack newer counters.")
         expect(legacyRepository.diagnostics().recentEvents.isEmpty, "Repository should load legacy stores that lack events.")
+        let legacyRun = legacyRepository.latestFinishedRun()
+        expect(legacyRun?.sleepResult == .notAttempted && legacyRun?.heartRateResult == .notAttempted, "Legacy runs without phase results should decode as not attempted.")
+
+        let resultsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("WHOOPHealthSyncRepositoryResults-\(UUID().uuidString)", isDirectory: true)
+        let resultsURL = resultsDirectory.appendingPathComponent("sync-store.json", isDirectory: false)
+        defer {
+            try? FileManager.default.removeItem(at: resultsDirectory)
+        }
+        let resultsRepository = SyncRepository(fileURL: resultsURL)
+        let resultsPlan = SyncWindowPlanner.makePlan(
+            now: date(5_000),
+            checkpoints: SyncCheckpointState(lastHeartRateEnd: nil, lastSleepQueryEnd: nil),
+            heartRateStepSeconds: 6
+        )
+        let resultsRunID = try resultsRepository.createRun(startedAt: date(5_000), plan: resultsPlan)
+        let resultsSleepWindow = SyncWindowPlanner.sleepQueryWindow(for: resultsPlan)
+        var resultsSummary = SyncSummary()
+        resultsSummary.sleepResult = .updated
+        resultsSummary.heartRateResult = .failed
+        resultsSummary.recovery.status = .completed
+        resultsSummary.recovery.written = 3
+        resultsSummary.sleepsDownloaded = 1
+        resultsSummary.sleepsWritten = 2
+        resultsSummary.sleepsUnchanged = 3
+        resultsSummary.sleepsRevised = 4
+        resultsSummary.sleepsDiscardedOutOfWindow = 5
+        resultsSummary.stagesWritten = 6
+        resultsSummary.stagesSkipped = 7
+        resultsSummary.stagesRemoved = 8
+        resultsSummary.heartRateDownloaded = 9
+        resultsSummary.heartRateWritten = 10
+        resultsSummary.heartRateSkipped = 11
+        resultsSummary.heartRateRemoved = 12
+        resultsSummary.heartRateDiscardedOutOfWindow = 13
+        resultsSummary.effectiveHeartRateResolution = 60
+        resultsSummary.heartRateWindowStart = resultsPlan.heartRateWindow.start
+        resultsSummary.heartRateWindowEnd = resultsPlan.heartRateWindow.end
+        resultsSummary.sleepQueryWindowStart = resultsSleepWindow.start
+        resultsSummary.sleepQueryWindowEnd = resultsSleepWindow.end
+        resultsSummary.elapsedSeconds = 2.5
+        resultsSummary.errors = ["first failure", "second failure"]
+        try resultsRepository.finishRun(resultsRunID, summary: resultsSummary, status: "partial")
+        _ = try resultsRepository.createRun(startedAt: date(6_000), plan: resultsPlan)
+        let resultsReloaded = SyncRepository(fileURL: resultsURL)
+        let resultsRun = resultsReloaded.latestFinishedRun()
+        expect(resultsRun?.id == resultsRunID, "latestFinishedRun should skip newer runs that are still running.")
+        expect(resultsRun?.sleepResult == .updated && resultsRun?.heartRateResult == .failed, "Reloaded run should preserve phase results.")
+        expect(resultsRun.map(SyncSummary.init(record:)) == resultsSummary, "A reloaded run should rebuild the original summary.")
 
         let boundedDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("WHOOPHealthSyncRepositoryBoundedRuns-\(UUID().uuidString)", isDirectory: true)

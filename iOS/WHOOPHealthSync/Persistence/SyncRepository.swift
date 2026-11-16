@@ -228,6 +228,10 @@ final class SyncRepository {
         )
     }
 
+    func latestFinishedRun() -> SyncRunRecord? {
+        snapshot.runs.filter { $0.status != "running" }.max { $0.startedAt < $1.startedAt }
+    }
+
     func appendEvent(runID: UUID?, level: String, category: String, message: String) throws {
         snapshot.events.append(
             SyncEventRecord(
@@ -383,6 +387,8 @@ final class SyncRepository {
         snapshot.runs[index].elapsedSeconds = summary.elapsedSeconds
         snapshot.runs[index].recovery = summary.recovery
         snapshot.runs[index].errorsText = summary.errors.map(SensitiveTextSanitizer.redact).joined(separator: "\n")
+        snapshot.runs[index].sleepResult = summary.sleepResult
+        snapshot.runs[index].heartRateResult = summary.heartRateResult
         trimStoredRuns()
         try save()
     }

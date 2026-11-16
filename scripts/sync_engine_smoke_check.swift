@@ -7,6 +7,7 @@ struct SyncEngineSmokeCheck {
     @MainActor
     static func main() async throws {
         try await testIdempotentManualSync()
+        try await testRunOriginIsRecordedInEventLog()
         try await testLateHeartRateBackfillsWithoutDuplicatingAppleWatchData()
         try await testInterruptedHeartRateRecheckDoesNotRewindCheckpoint()
         try await testHeartRateFailureKeepsSleepCheckpointOnly()
@@ -87,6 +88,24 @@ struct SyncEngineSmokeCheck {
         expect(diagnostics.recentEvents.contains { $0.category == "sleep.write" }, "Sync should persist sleep write events.")
         expect(diagnostics.recentEvents.contains { $0.category == "hr.write" }, "Sync should persist HR write events.")
         expect(diagnostics.recentEvents.allSatisfy { $0.runID != nil }, "Sync events should be associated with a run ID.")
+    }
+
+    @MainActor
+    private static func testRunOriginIsRecordedInEventLog() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("sync-origin-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let repository = SyncRepository(fileURL: url)
+        let engine = SyncEngine(api: FakeWhoopAPI(sleeps: [], heartRatePoints: []),
+            healthKit: FakeHealthData(externalSleep: [], externalHeartRate: []), repository: repository)
+
+        _ = try await engine.synchronize(recoveryMode: .recent, resumeDeferred: false, origin: .automation)
+        var messages = repository.diagnostics().recentEvents.map(\.message)
+        expect(messages.contains { $0.hasPrefix("Shortcut start.") }, "Automation runs should record a Shortcut start event.")
+        expect(!messages.contains { $0.hasPrefix("Manual start.") }, "Automation runs should not record a Manual start event.")
+
+        _ = try await engine.synchronize()
+        messages = repository.diagnostics().recentEvents.map(\.message)
+        expect(messages.contains { $0.hasPrefix("Manual start.") }, "Default runs should record a Manual start event.")
     }
 
     @MainActor
