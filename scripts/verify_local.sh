@@ -136,6 +136,37 @@ plutil -lint \
   iOS/WHOOPHealthSync/WHOOPHealthSync.entitlements \
   iOS/WHOOPHealthSync.xcodeproj/project.pbxproj
 
+strings_dir="$(mktemp -d "/tmp/health-data-bridge-strings.XXXXXX")"
+trap 'rm -rf "$strings_dir"' EXIT
+for lproj_dir in iOS/WHOOPHealthSync/*.lproj; do
+  mkdir -p "$strings_dir/$(basename "$lproj_dir" .lproj)"
+done
+for strings_file in iOS/WHOOPHealthSync/*.lproj/*.strings; do
+  lang_dir="$strings_dir/$(basename "$(dirname "$strings_file")" .lproj)"
+  plutil -convert xml1 -o - "$strings_file" | sed -n 's/^[[:space:]]*<key>\(.*\)<\/key>$/\1/p' | LC_ALL=C sort -u > "$lang_dir/$(basename "$strings_file")"
+done
+strings_drift=0
+for strings_name in $(find "$strings_dir" -type f -name '*.strings' -exec basename {} \; | sort -u); do
+  cat "$strings_dir"/*/"$strings_name" 2>/dev/null | LC_ALL=C sort -u > "$strings_dir/all.keys" || true
+  for lang_dir in "$strings_dir"/*/; do
+    lang="$(basename "$lang_dir")"
+    if [[ ! -f "$lang_dir$strings_name" ]]; then
+      echo "$strings_name: file missing for $lang" >&2
+      strings_drift=1
+      continue
+    fi
+    missing_keys="$(LC_ALL=C comm -23 "$strings_dir/all.keys" "$lang_dir$strings_name")"
+    if [[ -n "$missing_keys" ]]; then
+      printf '%s\n' "$missing_keys" | sed "s/^/$strings_name: $lang missing key: /" >&2
+      strings_drift=1
+    fi
+  done
+done
+if [[ "$strings_drift" != 0 ]]; then
+  exit 1
+fi
+echo "Localization key parity passed"
+
 healthkit_entitlement="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.healthkit' iOS/WHOOPHealthSync/WHOOPHealthSync.entitlements)"
 if [[ "$healthkit_entitlement" != "true" ]]; then
   echo "Expected HealthKit entitlement to be true." >&2

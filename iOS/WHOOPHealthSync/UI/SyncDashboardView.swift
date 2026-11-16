@@ -173,7 +173,7 @@ struct SyncDashboardView: View {
         if !viewModel.repositoryAvailable { return "Local data unavailable" }
         if !isAuthenticated && viewModel.setupCompleted { return "Reconnect WHOOP; saved progress retained" }
         if let summary = viewModel.lastSummary { return summary.hasIncompleteResults ? "Partial result; review pending data" : "Sync finished" }
-        if !viewModel.errors.isEmpty || viewModel.diagnostics.lastRunStatus == "failed" || viewModel.diagnostics.lastRunStatus == "partial" { return "Pending access check or retry" }
+        if !viewModel.errors.isEmpty || viewModel.diagnostics.lastRunStatus == .failed || viewModel.diagnostics.lastRunStatus == .partial { return "Pending access check or retry" }
         if viewModel.setupCompleted && viewModel.diagnostics.lastRunFinishedAt == nil &&
             viewModel.diagnostics.lastSleepCheckpoint == nil && viewModel.diagnostics.lastHeartRateCheckpoint == nil { return "Configuration saved; first sync pending" }
         return isAuthenticated ? "Ready to sync" : "Connect WHOOP to get started"
@@ -234,13 +234,13 @@ struct SyncDashboardView: View {
 
     private var lastRunStatus: LocalizedStringKey {
         switch viewModel.diagnostics.lastRunStatus {
-        case "success":
+        case .success:
             return "Completed"
-        case "partial":
+        case .partial:
             return "Completed with issues"
-        case "failed":
+        case .failed:
             return "Failed"
-        case "running":
+        case .running:
             return "In progress"
         default:
             return "Unknown"
@@ -249,11 +249,11 @@ struct SyncDashboardView: View {
 
     private var lastRunStatusColor: Color {
         switch viewModel.diagnostics.lastRunStatus {
-        case "success":
+        case .success:
             return .green
-        case "partial":
+        case .partial:
             return .orange
-        case "failed":
+        case .failed:
             return .red
         default:
             return .secondary

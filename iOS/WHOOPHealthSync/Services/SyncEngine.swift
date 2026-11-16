@@ -30,7 +30,7 @@ protocol SyncPersisting {
     func upsertSleepRecord(session: SleepSession, fingerprint: String, result: String) throws
     func createRun(startedAt: Date, plan: IncrementalSyncPlan) throws -> UUID
     func createRejectedRun(startedAt: Date) throws -> UUID
-    func finishRun(_ runID: UUID, summary: SyncSummary, status: String) throws
+    func finishRun(_ runID: UUID, summary: SyncSummary, status: SyncRunStatus) throws
     func validateAccount(_ key: String) throws
     func deferredWindow(for type: String) throws -> TimeRange?
     func setDeferredWindow(_ window: TimeRange?, for type: String) throws
@@ -264,10 +264,10 @@ final class SyncEngine {
                 }
             }
             summary.elapsedSeconds = Date().timeIntervalSince(startedAt)
-            let status = summary.hasIncompleteResults ? "partial" : "success"
+            let status: SyncRunStatus = summary.hasIncompleteResults ? .partial : .success
             try repository.finishRun(run, summary: summary, status: status)
-            recordEvent(runID: run, level: status == "success" ? "info" : "warning", category: "sync", message: String(localized: "Sync finished: \(status). Sleeps downloaded=\(summary.sleepsDownloaded), stages written=\(summary.stagesWritten), HR downloaded=\(summary.heartRateDownloaded), HR written=\(summary.heartRateWritten), errors=\(summary.errors.count)."))
-            AppLog.sync.info("Manual sync finished with status \(status, privacy: .public).")
+            recordEvent(runID: run, level: status == .success ? "info" : "warning", category: "sync", message: String(localized: "Sync finished: \(status.rawValue). Sleeps downloaded=\(summary.sleepsDownloaded), stages written=\(summary.stagesWritten), HR downloaded=\(summary.heartRateDownloaded), HR written=\(summary.heartRateWritten), errors=\(summary.errors.count)."))
+            AppLog.sync.info("Manual sync finished with status \(status.rawValue, privacy: .public).")
             lastSummary = summary
             return summary
         } catch {
@@ -286,7 +286,7 @@ final class SyncEngine {
             // Authentication/account failures are recorded without reading unvalidated checkpoints.
             let failedRun = activeRun ?? (try? repository.createRejectedRun(startedAt: startedAt))
             if let run = failedRun {
-                try? repository.finishRun(run, summary: summary, status: error is CancellationError ? "cancelled" : "failed")
+                try? repository.finishRun(run, summary: summary, status: error is CancellationError ? .cancelled : .failed)
                 recordEvent(runID: run, level: "error", category: "sync", message: String(localized: "Sync failed: \(Self.message(error))"))
             }
             AppLog.sync.error("Manual sync failed: \(Self.message(error), privacy: .public)")

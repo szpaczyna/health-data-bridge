@@ -12,7 +12,7 @@ enum PreviewFixtures {
         accountBindingRequired: Bool = false,
         summary: SyncSummary? = nil,
         errors: [String] = [],
-        lastRunStatus: String? = "success"
+        lastRunStatus: SyncRunStatus? = .success
     ) -> SyncViewModel {
         let now = Date()
         let repository = makeRepository(
@@ -63,7 +63,7 @@ enum PreviewFixtures {
         recoveryConfigured: Bool,
         accountBindingRequired: Bool,
         summary: SyncSummary?,
-        lastRunStatus: String?,
+        lastRunStatus: SyncRunStatus?,
         now: Date
     ) -> SyncRepository {
         let repository = SyncRepository(
@@ -163,7 +163,7 @@ private struct OptionsPreview: View {
                 setupCompleted: true,
                 recoveryConfigured: true,
                 errors: ["Preview session expired."],
-                lastRunStatus: "failed"
+                lastRunStatus: .failed
             )
         )
     }
@@ -212,7 +212,7 @@ private struct OptionsPreview: View {
             authStatus: .reconnectRequired(reason: "Preview session expired."),
             setupCompleted: true,
             errors: ["Preview session expired."],
-            lastRunStatus: "failed"
+            lastRunStatus: .failed
         )
     )
 }

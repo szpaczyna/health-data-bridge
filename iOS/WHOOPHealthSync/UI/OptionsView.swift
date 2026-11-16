@@ -532,15 +532,15 @@ struct SyncActivityView: View {
         return formatter.string(from: date)
     }
 
-    private func localizedStatus(_ status: String?) -> String {
+    private func localizedStatus(_ status: SyncRunStatus?) -> String {
         switch status {
-        case "success":
+        case .success:
             return AppLocalization.string("completed", locale: locale)
-        case "partial":
+        case .partial:
             return AppLocalization.string("with issues", locale: locale)
-        case "failed":
+        case .failed:
             return AppLocalization.string("failed", locale: locale)
-        case "running":
+        case .running:
             return AppLocalization.string("in progress", locale: locale)
         default:
             return AppLocalization.string("unknown", locale: locale)

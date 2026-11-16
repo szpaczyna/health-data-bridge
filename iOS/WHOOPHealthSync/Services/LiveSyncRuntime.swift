@@ -40,13 +40,7 @@ final class LiveSyncRuntime {
         let provider = WhoopPrivateRecoveryProvider(currentUserID: { try await api.fetchCurrentUser().id }, fetch: { id, window in
             try await api.fetchRecoveryCycleRecords(userID: id, window: window)
         }, state: { try repository.recoveryState() }, commitState: { try repository.commitRecoveryState($0) })
-        let recoveryPipeline = RecoverySyncPipeline(provider: provider, health: recoveryAdapter, persistence: repository, appBundle: Bundle.main.bundleIdentifier ?? "com.joselourido.WHOOPHealthSync", canContinueHistory: {
-            #if os(iOS)
-            return UIApplication.shared.applicationState == .active
-            #else
-            return true
-            #endif
-        }, canContinueSync: {
+        let recoveryPipeline = RecoverySyncPipeline(provider: provider, health: recoveryAdapter, persistence: repository, appBundle: Bundle.main.bundleIdentifier ?? "com.joselourido.WHOOPHealthSync", canContinueHistory: Self.appIsActive, canContinueSync: {
             if case .authenticated = authService.currentStatus() { return true }; return false
         })
         self.recoveryPipeline = recoveryPipeline
@@ -173,6 +167,14 @@ final class LiveSyncRuntime {
 
     var latestOperationSummary: SyncSummary? { operationSummary }
 
+    private static func appIsActive() -> Bool {
+        #if os(iOS)
+        return UIApplication.shared.applicationState == .active
+        #else
+        return true
+        #endif
+    }
+
     func importHistory(start: Date?) async throws -> SyncSummary {
         try acquireSyncLock(); defer { releaseSyncLock() }
         operationSummary = nil
@@ -197,26 +199,20 @@ final class LiveSyncRuntime {
             history.pending = recent.pending; history.recentCompleted = recent.recentCompleted
             if ![.completed, .historyLimited, .disabled].contains(recent.status) { history.status = recent.status }
             return history
-        }, canContinue: {
-            #if os(iOS)
-            return UIApplication.shared.applicationState == .active
-            #else
-            return true
-            #endif
-        })
+        }, canContinue: { Self.appIsActive() })
         importer.progressChanged = { [weak self] in self?.historyProgressChanged?() }
         do {
             let summary = try await importer.run(start: start)
             operationSummary = summary
             let run = try repository.createRejectedRun(startedAt: Date())
-            try repository.finishRun(run, summary: summary, status: summary.hasIncompleteResults ? "partial" : "success")
+            try repository.finishRun(run, summary: summary, status: summary.hasIncompleteResults ? .partial : .success)
             return summary
         } catch {
             var summary = importer.lastSummary
             summary.errors = [SensitiveTextSanitizer.redact(error.localizedDescription)]
             operationSummary = summary
             if let run = try? repository.createRejectedRun(startedAt: Date()) {
-                try? repository.finishRun(run, summary: summary, status: error is CancellationError ? "cancelled" : "failed")
+                try? repository.finishRun(run, summary: summary, status: error is CancellationError ? .cancelled : .failed)
             }
             throw error
         }
@@ -241,13 +237,13 @@ final class LiveSyncRuntime {
         do {
             summary.recovery = try await recoveryPipeline.run(accountKey: key, mode: .history, maxPages: Int.max)
             summary.elapsedSeconds = Date().timeIntervalSince(started)
-            try repository.finishRun(run, summary: summary, status: "success")
+            try repository.finishRun(run, summary: summary, status: .success)
             return summary
         } catch {
             summary.recovery = recoveryPipeline.lastSummary; summary.recovery.status = .issues
             summary.elapsedSeconds = Date().timeIntervalSince(started)
             summary.errors = [SensitiveTextSanitizer.redact(error.localizedDescription)]
-            try? repository.finishRun(run, summary: summary, status: error is CancellationError ? "cancelled" : "failed")
+            try? repository.finishRun(run, summary: summary, status: error is CancellationError ? .cancelled : .failed)
             throw error
         }
     }
