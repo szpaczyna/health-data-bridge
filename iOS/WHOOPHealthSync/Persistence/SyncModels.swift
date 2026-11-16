@@ -81,6 +81,7 @@ struct SyncRunRecord: Codable, Equatable, Identifiable {
     var elapsedSeconds: Double
     var recovery: RecoverySyncSummary
     var errorsText: String
+    var errors: [String]?
     // Stored as raw strings because the core SyncDataResult enum is not Codable.
     private var sleepResultValue: String
     private var heartRateResultValue: String
@@ -123,6 +124,7 @@ struct SyncRunRecord: Codable, Equatable, Identifiable {
         case errorsText
         case sleepResultValue = "sleepResult"
         case heartRateResultValue = "heartRateResult"
+        case errors
     }
 
     init(startedAt: Date) {
@@ -146,6 +148,7 @@ struct SyncRunRecord: Codable, Equatable, Identifiable {
         self.elapsedSeconds = 0
         self.recovery = RecoverySyncSummary()
         self.errorsText = ""
+        self.errors = nil
         self.sleepResultValue = SyncDataResult.notAttempted.rawValue
         self.heartRateResultValue = SyncDataResult.notAttempted.rawValue
     }
@@ -177,6 +180,7 @@ struct SyncRunRecord: Codable, Equatable, Identifiable {
         self.elapsedSeconds = try container.decodeIfPresent(Double.self, forKey: .elapsedSeconds) ?? 0
         self.recovery = try container.decodeIfPresent(RecoverySyncSummary.self, forKey: .recovery) ?? RecoverySyncSummary()
         self.errorsText = try container.decodeIfPresent(String.self, forKey: .errorsText) ?? ""
+        self.errors = try container.decodeIfPresent([String].self, forKey: .errors)
         self.sleepResultValue = Self.resultValue(try container.decodeIfPresent(String.self, forKey: .sleepResultValue))
         self.heartRateResultValue = Self.resultValue(try container.decodeIfPresent(String.self, forKey: .heartRateResultValue))
     }
@@ -211,7 +215,7 @@ extension SyncSummary {
         sleepQueryWindowStart = record.sleepWindowStart
         sleepQueryWindowEnd = record.sleepWindowEnd
         elapsedSeconds = record.elapsedSeconds
-        errors = record.errorsText.isEmpty ? [] : record.errorsText.components(separatedBy: "\n")
+        errors = record.errors ?? (record.errorsText.isEmpty ? [] : record.errorsText.components(separatedBy: "\n"))
     }
 }
 

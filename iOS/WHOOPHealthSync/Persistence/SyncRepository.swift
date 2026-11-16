@@ -386,7 +386,9 @@ final class SyncRepository {
         snapshot.runs[index].effectiveHeartRateResolution = summary.effectiveHeartRateResolution
         snapshot.runs[index].elapsedSeconds = summary.elapsedSeconds
         snapshot.runs[index].recovery = summary.recovery
-        snapshot.runs[index].errorsText = summary.errors.map(SensitiveTextSanitizer.redact).joined(separator: "\n")
+        let redactedErrors = summary.errors.map(SensitiveTextSanitizer.redact)
+        snapshot.runs[index].errors = redactedErrors
+        snapshot.runs[index].errorsText = redactedErrors.joined(separator: "\n")
         snapshot.runs[index].sleepResult = summary.sleepResult
         snapshot.runs[index].heartRateResult = summary.heartRateResult
         trimStoredRuns()
