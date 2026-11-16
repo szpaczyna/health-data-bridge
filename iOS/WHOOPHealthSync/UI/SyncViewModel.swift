@@ -111,7 +111,9 @@ final class SyncViewModel: ObservableObject {
     private var recoveryConfigurator: (any RecoveryConfiguring)?
     private var accountBinder: (any AccountBindingProviding)?
     private var isConfigured = false
+    private var displayedRunStartedAt: Date?
     private var preferredHeartRateStepSeconds: Int
+    private nonisolated(unsafe) var automationObserver: NSObjectProtocol?
 
     init(
         authService: WhoopAuthService? = nil,
@@ -134,9 +136,13 @@ final class SyncViewModel: ObservableObject {
         self.isConfigured = authService != nil || healthKitService != nil || repository != nil || syncEngine != nil || accountBinder != nil || recoveryConfigurator != nil
     }
 
+    deinit {
+        if let automationObserver { NotificationCenter.default.removeObserver(automationObserver) }
+    }
+
     func configure() {
         guard !isConfigured else {
-            refreshDiagnostics()
+            reloadFromStore()
             return
         }
         #if targetEnvironment(simulator) && WHOOP_VALIDATION_BUILD && WHOOP_IOS27_SDK
@@ -175,7 +181,7 @@ final class SyncViewModel: ObservableObject {
                     configuration: WhoopAuthConfiguration(cognitoURL: URL(string: "https://auth.example.invalid/")!))
                 self.authStatus = .disconnected
             }
-            self.isConfigured = true; refreshDiagnostics(); return
+            self.isConfigured = true; reloadFromStore(); return
         }
         #endif
         let runtime = LiveSyncRuntime.shared
@@ -193,8 +199,23 @@ final class SyncViewModel: ObservableObject {
         self.syncEngine = runtime
         self.authStatus = runtime.authService.currentStatus()
         self.isConfigured = true
-        refreshDiagnostics()
+        observeAutomationRuns()
+        reloadFromStore()
         appendEvent(String(localized: "App initialized."))
+    }
+
+    func observeAutomationRuns() {
+        automationObserver = NotificationCenter.default.addObserver(forName: .automationSyncFinished, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reloadFromStore() }
+        }
+    }
+
+    func reloadFromStore() {
+        refreshDiagnostics()
+        guard !isSyncing, let run = repository?.latestFinishedRun(),
+              displayedRunStartedAt.map({ run.startedAt > $0 }) ?? true else { return }
+        lastSummary = SyncSummary(record: run)
+        displayedRunStartedAt = run.startedAt
     }
 
     func signIn(webCookies: [String: String]) {
@@ -246,6 +267,7 @@ final class SyncViewModel: ObservableObject {
         appendEvent(String(localized: "Manual sync started."))
         defer {
             isSyncing = false
+            displayedRunStartedAt = repository?.latestFinishedRun()?.startedAt
             refreshDiagnostics()
         }
 
@@ -351,7 +373,7 @@ final class SyncViewModel: ObservableObject {
     func importHistory(start: Date?) async {
         guard canImportHistory, let importer = syncEngine as? any HistoryRunning else { return }
         isSyncing = true; errors.removeAll(); lastSummary = nil; recoveryProgress = RecoverySyncSummary()
-        defer { isSyncing = false; activeSyncTask = nil; refreshDiagnostics() }
+        defer { isSyncing = false; activeSyncTask = nil; displayedRunStartedAt = repository?.latestFinishedRun()?.startedAt; refreshDiagnostics() }
         let task = Task { @MainActor in try await importer.importHistory(start: start) }
         activeSyncTask = task
         do {
@@ -543,7 +565,7 @@ final class SyncViewModel: ObservableObject {
     func importRecoveryHistory() async {
         guard canImportRecovery, let recoveryConfigurator else { return }
         isSyncing = true; errors.removeAll(); lastSummary = nil; recoveryProgress = RecoverySyncSummary()
-        defer { isSyncing = false; activeSyncTask = nil; refreshDiagnostics() }
+        defer { isSyncing = false; activeSyncTask = nil; displayedRunStartedAt = repository?.latestFinishedRun()?.startedAt; refreshDiagnostics() }
         let task = Task { @MainActor in try await recoveryConfigurator.importRecoveryHistory() }
         activeSyncTask = task
         do { lastSummary = try await task.value }

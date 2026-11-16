@@ -77,6 +77,19 @@ struct SyncRunRecord: Codable, Equatable, Identifiable {
     var elapsedSeconds: Double
     var recovery: RecoverySyncSummary
     var errorsText: String
+    // Stored as raw strings because the core SyncDataResult enum is not Codable.
+    private var sleepResultValue: String
+    private var heartRateResultValue: String
+
+    var sleepResult: SyncDataResult {
+        get { SyncDataResult(rawValue: sleepResultValue) ?? .notAttempted }
+        set { sleepResultValue = newValue.rawValue }
+    }
+
+    var heartRateResult: SyncDataResult {
+        get { SyncDataResult(rawValue: heartRateResultValue) ?? .notAttempted }
+        set { heartRateResultValue = newValue.rawValue }
+    }
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -104,6 +117,8 @@ struct SyncRunRecord: Codable, Equatable, Identifiable {
         case elapsedSeconds
         case recovery
         case errorsText
+        case sleepResultValue = "sleepResult"
+        case heartRateResultValue = "heartRateResult"
     }
 
     init(startedAt: Date) {
@@ -127,6 +142,8 @@ struct SyncRunRecord: Codable, Equatable, Identifiable {
         self.elapsedSeconds = 0
         self.recovery = RecoverySyncSummary()
         self.errorsText = ""
+        self.sleepResultValue = SyncDataResult.notAttempted.rawValue
+        self.heartRateResultValue = SyncDataResult.notAttempted.rawValue
     }
 
     init(from decoder: Decoder) throws {
@@ -156,6 +173,41 @@ struct SyncRunRecord: Codable, Equatable, Identifiable {
         self.elapsedSeconds = try container.decodeIfPresent(Double.self, forKey: .elapsedSeconds) ?? 0
         self.recovery = try container.decodeIfPresent(RecoverySyncSummary.self, forKey: .recovery) ?? RecoverySyncSummary()
         self.errorsText = try container.decodeIfPresent(String.self, forKey: .errorsText) ?? ""
+        self.sleepResultValue = Self.resultValue(try container.decodeIfPresent(String.self, forKey: .sleepResultValue))
+        self.heartRateResultValue = Self.resultValue(try container.decodeIfPresent(String.self, forKey: .heartRateResultValue))
+    }
+
+    private static func resultValue(_ raw: String?) -> String {
+        (raw.flatMap(SyncDataResult.init(rawValue:)) ?? .notAttempted).rawValue
+    }
+}
+
+extension SyncSummary {
+    init(record: SyncRunRecord) {
+        self.init()
+        sleepResult = record.sleepResult
+        heartRateResult = record.heartRateResult
+        recovery = record.recovery
+        sleepsDownloaded = record.sleepsDownloaded
+        sleepsWritten = record.sleepsWritten
+        sleepsUnchanged = record.sleepsUnchanged
+        sleepsRevised = record.sleepsRevised
+        sleepsDiscardedOutOfWindow = record.sleepsDiscardedOutOfWindow
+        stagesWritten = record.stagesWritten
+        stagesSkipped = record.stagesSkipped
+        stagesRemoved = record.stagesRemoved
+        heartRateDownloaded = record.heartRateDownloaded
+        heartRateWritten = record.heartRateWritten
+        heartRateSkipped = record.heartRateSkipped
+        heartRateRemoved = record.heartRateRemoved
+        heartRateDiscardedOutOfWindow = record.heartRateDiscardedOutOfWindow
+        effectiveHeartRateResolution = record.effectiveHeartRateResolution
+        heartRateWindowStart = record.heartRateWindowStart
+        heartRateWindowEnd = record.heartRateWindowEnd
+        sleepQueryWindowStart = record.sleepWindowStart
+        sleepQueryWindowEnd = record.sleepWindowEnd
+        elapsedSeconds = record.elapsedSeconds
+        errors = record.errorsText.isEmpty ? [] : record.errorsText.components(separatedBy: "\n")
     }
 }
 

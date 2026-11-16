@@ -131,6 +131,8 @@ final class HistoryImporter {
     }
 }
 
+enum SyncOrigin { case manual, automation }
+
 @MainActor
 final class SyncEngine {
     private let api: any WhoopAPIProviding
@@ -174,7 +176,7 @@ final class SyncEngine {
     }
 
     func synchronize(recoveryMode: RecoveryRunMode, resumeDeferred: Bool = true,
-                     historyWindow: TimeRange? = nil) async throws -> SyncSummary {
+                     historyWindow: TimeRange? = nil, origin: SyncOrigin = .manual) async throws -> SyncSummary {
         guard !isSynchronizing else {
             AppLog.sync.warning("Rejected concurrent manual sync request.")
             throw SyncEngineError.syncAlreadyRunning
@@ -226,7 +228,10 @@ final class SyncEngine {
 
             let run = try repository.createRun(startedAt: startedAt, plan: plan)
             activeRun = run
-            recordEvent(runID: run, level: "info", category: "sync", message: String(localized: "Manual start. HR window \(Self.iso(plan.heartRateWindow.start)) → \(Self.iso(plan.heartRateWindow.end)); sleep window \(Self.iso(sleepQueryWindow.start)) → \(Self.iso(sleepQueryWindow.end))."))
+            let startMessage = origin == .automation
+                ? String(localized: "Shortcut start. HR window \(Self.iso(plan.heartRateWindow.start)) → \(Self.iso(plan.heartRateWindow.end)); sleep window \(Self.iso(sleepQueryWindow.start)) → \(Self.iso(sleepQueryWindow.end)).")
+                : String(localized: "Manual start. HR window \(Self.iso(plan.heartRateWindow.start)) → \(Self.iso(plan.heartRateWindow.end)); sleep window \(Self.iso(sleepQueryWindow.start)) → \(Self.iso(sleepQueryWindow.end)).")
+            recordEvent(runID: run, level: "info", category: "sync", message: startMessage)
             AppLog.sync.info("Manual sync started. HR \(plan.heartRateWindow.start, privacy: .public)-\(plan.heartRateWindow.end, privacy: .public)")
 
             try Task.checkCancellation()

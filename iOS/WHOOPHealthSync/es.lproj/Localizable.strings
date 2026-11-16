@@ -230,6 +230,7 @@
 "Sync failed: %@" = "Sincronización fallida: %@";
 "Open HealthDataBridge and connect your account before running the automation." = "Abre HealthDataBridge y conecta tu cuenta antes de ejecutar la automatización.";
 "Manual start. HR window %@ → %@; sleep window %@ → %@." = "Inicio manual. Ventana HR %@ → %@; ventana sueño %@ → %@.";
+"Shortcut start. HR window %@ → %@; sleep window %@ → %@." = "Inicio desde Atajos. Ventana HR %@ → %@; ventana sueño %@ → %@.";
 "WHOOP user authenticated; ID received." = "Usuario WHOOP autenticado; ID recibido.";
 "Sync finished: %@. Sleeps downloaded=%lld, stages written=%lld, HR downloaded=%lld, HR written=%lld, errors=%lld." = "Fin de sync: %@. Sueños descargados=%lld, fases escritas=%lld, HR descargadas=%lld, HR escritas=%lld, errores=%lld.";
 "Sleep read preflight %@ → %@: %lld visible samples, external=%lld." = "Preflight lectura sueño %@ → %@: %lld muestras visibles, externas=%lld.";

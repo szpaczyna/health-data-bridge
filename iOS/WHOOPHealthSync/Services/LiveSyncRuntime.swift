@@ -268,7 +268,10 @@ final class LiveSyncRuntime {
         }
         let task = Task { @MainActor in try await self.runAutomatedSync() }
         automationTask = task
-        defer { automationTask = nil }
+        defer {
+            automationTask = nil
+            NotificationCenter.default.post(name: .automationSyncFinished, object: nil)
+        }
         return try await task.value
     }
 
@@ -282,7 +285,7 @@ final class LiveSyncRuntime {
         try Self.validateAutomatedSetup(repository: repository)
 
         try healthKitService.validateExistingAuthorization()
-        return try await syncEngine.synchronize(recoveryMode: .recent, resumeDeferred: false)
+        return try await syncEngine.synchronize(recoveryMode: .recent, resumeDeferred: false, origin: .automation)
     }
 
     // A background launch for the intent can coincide with another operation that releases the lock shortly after.
@@ -316,6 +319,10 @@ final class LiveSyncRuntime {
             throw AutomatedSyncError.initialManualSyncRequired
         }
     }
+}
+
+extension Notification.Name {
+    static let automationSyncFinished = Notification.Name("org.shpaq.WHOOPHealthSync.automationSyncFinished")
 }
 
 enum LiveSyncRuntimeError: Error, LocalizedError {

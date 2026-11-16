@@ -18,7 +18,10 @@ struct SyncViewModelSmokeCheck {
         try await testCorruptStoreNeverStartsOnboarding()
         try await testPartialAuthorizationAndSelectionInvalidation()
         try await testAtomicSetupFailureAndDuplicateSave()
-        print("SyncViewModel smoke check passed (13 scenarios: unified setup, corrupt-store gate, partial authorization, atomic rollback, duplicate-save guard, continuity and history)")
+        try await testStoredRunsPopulateSummary()
+        try await testOlderStoredRunKeepsInAppSummary()
+        try await testAutomationNotificationReloadsSummary()
+        print("SyncViewModel smoke check passed (16 scenarios: unified setup, corrupt-store gate, partial authorization, atomic rollback, duplicate-save guard, continuity, history, stored-run summary and automation reload)")
     }
 
     @MainActor
@@ -412,6 +415,77 @@ struct SyncViewModelSmokeCheck {
         let completed = await first.value
         expect(completed, "The first save completes once.")
         expect(!guarded.needsInitialSetup && runner.syncs == 0, "Saving configuration itself does not launch another sync.")
+    }
+
+    @MainActor private static func testStoredRunsPopulateSummary() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("stored-summary-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let repo = SyncRepository(fileURL: url)
+        var launchSummary = SyncSummary(); launchSummary.sleepsWritten = 3
+        try repo.finishRun(repo.createRejectedRun(startedAt: date(100)), summary: launchSummary, status: "success")
+        let vm = SyncViewModel(healthKitService: FakeHealthKitAuthorizer(), repository: repo,
+            syncEngine: SequenceSyncRunner(results: []), initialAuthStatus: .authenticated(email: "fixture@example.invalid"))
+        vm.configure()
+        expect(vm.lastSummary?.sleepsWritten == 3, "Cold launch shows the latest stored run.")
+        var shortcutSummary = SyncSummary(); shortcutSummary.sleepsWritten = 5; shortcutSummary.heartRateWritten = 7
+        try repo.finishRun(repo.createRejectedRun(startedAt: date(200)), summary: shortcutSummary, status: "success")
+        vm.reloadFromStore()
+        expect(vm.lastSummary?.sleepsWritten == 5 && vm.lastSummary?.heartRateWritten == 7, "A run recorded outside the app appears after reload.")
+        var laterSummary = SyncSummary(); laterSummary.heartRateWritten = 11
+        try repo.finishRun(repo.createRejectedRun(startedAt: date(300)), summary: laterSummary, status: "success")
+        vm.isSyncing = true
+        vm.reloadFromStore()
+        expect(vm.lastSummary?.heartRateWritten == 7, "Reload never replaces the summary while a sync is running.")
+        vm.isSyncing = false
+        vm.reloadFromStore()
+        expect(vm.lastSummary?.heartRateWritten == 11, "Reload picks up the newer run once the sync finishes.")
+    }
+
+    @MainActor private static func testOlderStoredRunKeepsInAppSummary() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("stored-older-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let repo = SyncRepository(fileURL: url)
+        let runner = RecordingSyncRunner(repository: repo, startedAt: date(200))
+        let vm = SyncViewModel(healthKitService: FakeHealthKitAuthorizer(), repository: repo, syncEngine: runner,
+            initialAuthStatus: .authenticated(email: "fixture@example.invalid"))
+        vm.configure()
+        await vm.synchronize()
+        expect(vm.lastSummary?.sleepsWritten == 1, "In-app sync shows its returned summary.")
+        var olderSummary = SyncSummary(); olderSummary.sleepsWritten = 4
+        try repo.finishRun(repo.createRejectedRun(startedAt: date(100)), summary: olderSummary, status: "success")
+        vm.reloadFromStore()
+        expect(vm.lastSummary?.sleepsWritten == 1, "An equal or older stored run does not overwrite the in-app summary.")
+    }
+
+    @MainActor private static func testAutomationNotificationReloadsSummary() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("automation-reload-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let repo = SyncRepository(fileURL: url)
+        var vm: SyncViewModel? = SyncViewModel(healthKitService: FakeHealthKitAuthorizer(), repository: repo,
+            syncEngine: SequenceSyncRunner(results: []), initialAuthStatus: .authenticated(email: "fixture@example.invalid"))
+        vm?.configure()
+        vm?.observeAutomationRuns()
+        var shortcutSummary = SyncSummary(); shortcutSummary.heartRateWritten = 13
+        try repo.finishRun(repo.createRejectedRun(startedAt: date(100)), summary: shortcutSummary, status: "success")
+        NotificationCenter.default.post(name: .automationSyncFinished, object: nil)
+        for _ in 0..<20 where vm?.lastSummary == nil { try await Task.sleep(nanoseconds: 10_000_000) }
+        expect(vm?.lastSummary?.heartRateWritten == 13, "A finished Shortcut run appears without leaving the app.")
+        weak var released: SyncViewModel?
+        released = vm
+        vm = nil
+        expect(released == nil, "The observer does not retain the view model.")
+        NotificationCenter.default.post(name: .automationSyncFinished, object: nil)
+    }
+}
+
+@MainActor private final class RecordingSyncRunner: SyncRunning {
+    let repository: SyncRepository
+    let startedAt: Date
+    init(repository: SyncRepository, startedAt: Date) { self.repository = repository; self.startedAt = startedAt }
+    func synchronize() async throws -> SyncSummary {
+        var stored = SyncSummary(); stored.sleepsWritten = 9
+        try repository.finishRun(repository.createRejectedRun(startedAt: startedAt), summary: stored, status: "success")
+        var summary = SyncSummary(); summary.sleepsWritten = 1; return summary
     }
 }
 

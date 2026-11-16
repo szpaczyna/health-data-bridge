@@ -56,6 +56,7 @@ struct AppRootView: View {
     @State private var showsDisconnectConfirmation = false
     @AppStorage("appLanguage") private var appLanguage: AppLanguage = .system
     @AppStorage("appearance") private var appearance: Appearance = .system
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         _viewModel = StateObject(wrappedValue: SyncViewModel())
@@ -123,6 +124,9 @@ struct AppRootView: View {
         .environment(\.locale, appLanguage.locale)
         .onAppear {
             viewModel.configure()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { viewModel.reloadFromStore() }
         }
     }
 

@@ -230,6 +230,7 @@
 "Sync failed: %@" = "Sync failed: %@";
 "Open HealthDataBridge and connect your account before running the automation." = "Open HealthDataBridge and connect your account before running the automation.";
 "Manual start. HR window %@ → %@; sleep window %@ → %@." = "Manual start. HR window %@ → %@; sleep window %@ → %@.";
+"Shortcut start. HR window %@ → %@; sleep window %@ → %@." = "Shortcut start. HR window %@ → %@; sleep window %@ → %@.";
 "WHOOP user authenticated; ID received." = "WHOOP user authenticated; ID received.";
 "Sync finished: %@. Sleeps downloaded=%lld, stages written=%lld, HR downloaded=%lld, HR written=%lld, errors=%lld." = "Sync finished: %@. Sleeps downloaded=%lld, stages written=%lld, HR downloaded=%lld, HR written=%lld, errors=%lld.";
 "Sleep read preflight %@ → %@: %lld visible samples, external=%lld." = "Sleep read preflight %@ → %@: %lld visible samples, external=%lld.";
