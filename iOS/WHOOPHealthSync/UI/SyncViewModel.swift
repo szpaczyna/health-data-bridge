@@ -146,6 +146,30 @@ final class SyncViewModel: ObservableObject {
             return
         }
         #if targetEnvironment(simulator) && WHOOP_VALIDATION_BUILD && WHOOP_IOS27_SDK
+        if configureUITestFixtureIfRequested() { return }
+        #endif
+        let runtime = LiveSyncRuntime.shared
+
+        self.recoveryConfigurator = runtime
+        runtime.recoveryProgressChanged = { [weak self] state, summary in
+            self?.recoveryState = state; self?.recoveryProgress = summary
+        }
+        runtime.historyProgressChanged = { [weak self] in self?.refreshDiagnostics() }
+        self.accountBinder = runtime
+        self.authService = runtime.authService
+        self.healthKitService = runtime
+        self.repository = runtime.repository
+        self.preferredHeartRateStepSeconds = runtime.preferredHeartRateStepSeconds
+        self.syncEngine = runtime
+        self.authStatus = runtime.authService.currentStatus()
+        self.isConfigured = true
+        observeAutomationRuns()
+        reloadFromStore()
+        appendEvent(String(localized: "App initialized."))
+    }
+
+    #if targetEnvironment(simulator) && WHOOP_VALIDATION_BUILD && WHOOP_IOS27_SDK
+    private func configureUITestFixtureIfRequested() -> Bool {
         if (ProcessInfo.processInfo.arguments.contains("-whoopRecoveryUITest") || ProcessInfo.processInfo.arguments.contains("-whoopExistingUITest") || ProcessInfo.processInfo.arguments.contains("-whoopLoginUITest")),
            ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"]?.contains("WHOOP 0.2 QA") == true {
             let arguments = ProcessInfo.processInfo.arguments
@@ -181,28 +205,11 @@ final class SyncViewModel: ObservableObject {
                     configuration: WhoopAuthConfiguration(cognitoURL: URL(string: "https://auth.example.invalid/")!))
                 self.authStatus = .disconnected
             }
-            self.isConfigured = true; reloadFromStore(); return
+            self.isConfigured = true; reloadFromStore(); return true
         }
-        #endif
-        let runtime = LiveSyncRuntime.shared
-
-        self.recoveryConfigurator = runtime
-        runtime.recoveryProgressChanged = { [weak self] state, summary in
-            self?.recoveryState = state; self?.recoveryProgress = summary
-        }
-        runtime.historyProgressChanged = { [weak self] in self?.refreshDiagnostics() }
-        self.accountBinder = runtime
-        self.authService = runtime.authService
-        self.healthKitService = runtime
-        self.repository = runtime.repository
-        self.preferredHeartRateStepSeconds = runtime.preferredHeartRateStepSeconds
-        self.syncEngine = runtime
-        self.authStatus = runtime.authService.currentStatus()
-        self.isConfigured = true
-        observeAutomationRuns()
-        reloadFromStore()
-        appendEvent(String(localized: "App initialized."))
+        return false
     }
+    #endif
 
     func observeAutomationRuns() {
         automationObserver = NotificationCenter.default.addObserver(forName: .automationSyncFinished, object: nil, queue: .main) { [weak self] _ in
