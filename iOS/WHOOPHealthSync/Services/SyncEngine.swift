@@ -131,7 +131,16 @@ final class HistoryImporter {
     }
 }
 
-enum SyncOrigin { case manual, automation }
+enum SyncOrigin {
+    case manual, automation
+
+    var logLabel: String {
+        switch self {
+        case .manual: "Manual"
+        case .automation: "Shortcut"
+        }
+    }
+}
 
 @MainActor
 final class SyncEngine {
@@ -178,7 +187,7 @@ final class SyncEngine {
     func synchronize(recoveryMode: RecoveryRunMode, resumeDeferred: Bool = true,
                      historyWindow: TimeRange? = nil, origin: SyncOrigin = .manual) async throws -> SyncSummary {
         guard !isSynchronizing else {
-            AppLog.sync.warning("Rejected concurrent manual sync request.")
+            AppLog.sync.warning("Rejected concurrent \(origin.logLabel, privacy: .public) sync request.")
             throw SyncEngineError.syncAlreadyRunning
         }
         isSynchronizing = true
@@ -232,7 +241,7 @@ final class SyncEngine {
                 ? String(localized: "Shortcut start. HR window \(Self.iso(plan.heartRateWindow.start)) → \(Self.iso(plan.heartRateWindow.end)); sleep window \(Self.iso(sleepQueryWindow.start)) → \(Self.iso(sleepQueryWindow.end)).")
                 : String(localized: "Manual start. HR window \(Self.iso(plan.heartRateWindow.start)) → \(Self.iso(plan.heartRateWindow.end)); sleep window \(Self.iso(sleepQueryWindow.start)) → \(Self.iso(sleepQueryWindow.end)).")
             recordEvent(runID: run, level: "info", category: "sync", message: startMessage)
-            AppLog.sync.info("Manual sync started. HR \(plan.heartRateWindow.start, privacy: .public)-\(plan.heartRateWindow.end, privacy: .public)")
+            AppLog.sync.info("\(origin.logLabel, privacy: .public) sync started. HR \(plan.heartRateWindow.start, privacy: .public)-\(plan.heartRateWindow.end, privacy: .public)")
 
             try Task.checkCancellation()
             sleepBoundary = try await healthKit.authorizedBoundary(for: "sleep")
@@ -267,7 +276,7 @@ final class SyncEngine {
             let status: SyncRunStatus = summary.hasIncompleteResults ? .partial : .success
             try repository.finishRun(run, summary: summary, status: status)
             recordEvent(runID: run, level: status == .success ? "info" : "warning", category: "sync", message: String(localized: "Sync finished: \(status.rawValue). Sleeps downloaded=\(summary.sleepsDownloaded), stages written=\(summary.stagesWritten), HR downloaded=\(summary.heartRateDownloaded), HR written=\(summary.heartRateWritten), errors=\(summary.errors.count)."))
-            AppLog.sync.info("Manual sync finished with status \(status.rawValue, privacy: .public).")
+            AppLog.sync.info("\(origin.logLabel, privacy: .public) sync finished with status \(status.rawValue, privacy: .public).")
             lastSummary = summary
             return summary
         } catch {
@@ -289,7 +298,7 @@ final class SyncEngine {
                 try? repository.finishRun(run, summary: summary, status: error is CancellationError ? .cancelled : .failed)
                 recordEvent(runID: run, level: "error", category: "sync", message: String(localized: "Sync failed: \(Self.message(error))"))
             }
-            AppLog.sync.error("Manual sync failed: \(Self.message(error), privacy: .public)")
+            AppLog.sync.error("\(origin.logLabel, privacy: .public) sync failed: \(Self.message(error), privacy: .public)")
             throw error
         }
     }

@@ -148,7 +148,7 @@ struct RepositorySmokeCheck {
               "heartRateWritten": 4,
               "heartRateSkipped": 0,
               "heartRateRemoved": 0,
-              "errorsText": ""
+              "errorsText": "legacy one\\nlegacy two"
             }
           ],
           "sleepRecords": {},
@@ -161,6 +161,7 @@ struct RepositorySmokeCheck {
         expect(legacyRepository.diagnostics().recentEvents.isEmpty, "Repository should load legacy stores that lack events.")
         let legacyRun = legacyRepository.latestFinishedRun()
         expect(legacyRun?.sleepResult == .notAttempted && legacyRun?.heartRateResult == .notAttempted, "Legacy runs without phase results should decode as not attempted.")
+        expect(legacyRun.map(SyncSummary.init(record:))?.errors == ["legacy one", "legacy two"], "Legacy runs without an errors array should split errorsText.")
 
         let statusJSON = """
         [
@@ -224,6 +225,31 @@ struct RepositorySmokeCheck {
         expect(resultsRun?.id == resultsRunID, "latestFinishedRun should skip newer runs that are still running.")
         expect(resultsRun?.sleepResult == .updated && resultsRun?.heartRateResult == .failed, "Reloaded run should preserve phase results.")
         expect(resultsRun.map(SyncSummary.init(record:)) == resultsSummary, "A reloaded run should rebuild the original summary.")
+
+        let errorsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("WHOOPHealthSyncRepositoryErrors-\(UUID().uuidString)", isDirectory: true)
+        let errorsURL = errorsDirectory.appendingPathComponent("sync-store.json", isDirectory: false)
+        defer {
+            try? FileManager.default.removeItem(at: errorsDirectory)
+        }
+        let errorsRepository = SyncRepository(fileURL: errorsURL)
+        for (offset, errors) in [["line one\nline two", "second"], [""]].enumerated() {
+            let errorsRunID = try errorsRepository.createRun(startedAt: date(7_000 + TimeInterval(offset)), plan: resultsPlan)
+            var errorsSummary = SyncSummary()
+            errorsSummary.sleepResult = .updated
+            errorsSummary.heartRateResult = .updated
+            errorsSummary.recovery.status = .completed
+            var cleanSummary = errorsSummary
+            cleanSummary.errors = []
+            expect(!cleanSummary.hasIncompleteResults, "Only errors should make the round-trip summary incomplete.")
+            errorsSummary.errors = errors
+            try errorsRepository.finishRun(errorsRunID, summary: errorsSummary, status: .partial)
+            let errorsRun = SyncRepository(fileURL: errorsURL).latestFinishedRun()
+            let rebuilt = errorsRun.map(SyncSummary.init(record:))
+            expect(rebuilt?.errors == errors, "A reloaded run should rebuild errors exactly: \(errors)")
+            expect(rebuilt?.hasIncompleteResults == true, "A reloaded run with errors should stay incomplete: \(errors)")
+            expect(errorsRun?.errorsText == errors.joined(separator: "\n"), "errorsText should keep the newline-joined errors: \(errors)")
+        }
 
         let boundedDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("WHOOPHealthSyncRepositoryBoundedRuns-\(UUID().uuidString)", isDirectory: true)
