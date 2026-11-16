@@ -5,15 +5,20 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: core-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   core:
     runs-on: macos-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Toolchain
         run: swift --version
       - name: Core XCTest
         run: swift test --jobs 2
-      - name: Core checks
-        run: swift run --jobs 2 WHOOPHealthSyncCoreChecks
+      - name: Local verification
+        run: ./scripts/verify_local.sh
