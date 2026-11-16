@@ -14,8 +14,7 @@ final class LiveSyncRuntime {
 
     private let api: WhoopAPIClient
     private let healthKitService: HealthKitService
-    private var syncLockHolder: String?
-    private var automationTask: Task<SyncSummary, Error>?
+    private let syncCoordinator = SyncCoordinator()
     private let recoveryAdapter: HealthKitRecoveryAdapter
     private let recoveryPipeline: RecoverySyncPipeline
     private let syncEngine: SyncEngine
@@ -257,23 +256,10 @@ final class LiveSyncRuntime {
     }
 
     func synchronizeFromAutomation() async throws -> SyncSummary {
-        // Shortcuts can start the intent twice at once; the second caller shares the first run.
-        if let automationTask {
-            AppLog.sync.info("Automation joined the sync already started by Shortcuts.")
-            return try await automationTask.value
-        }
-        let task = Task { @MainActor in try await self.runAutomatedSync() }
-        automationTask = task
-        defer {
-            automationTask = nil
-            NotificationCenter.default.post(name: .automationSyncFinished, object: nil)
-        }
-        return try await task.value
+        try await syncCoordinator.runAutomation(lockOperation: "runAutomatedSync()") { try await self.runAutomatedSync() }
     }
 
     private func runAutomatedSync() async throws -> SyncSummary {
-        try await waitForSyncLock()
-        try acquireSyncLock(); defer { releaseSyncLock() }
         guard case .authenticated = authService.currentStatus() else {
             throw AutomatedSyncError.whoopNotConnected
         }
@@ -284,26 +270,12 @@ final class LiveSyncRuntime {
         return try await syncEngine.synchronize(recoveryMode: .recent, resumeDeferred: false, origin: .automation)
     }
 
-    // A background launch for the intent can coincide with another operation that releases the lock shortly after.
-    private func waitForSyncLock() async throws {
-        var attempts = 0
-        while let holder = syncLockHolder, attempts < 50 {
-            if attempts == 0 { AppLog.sync.info("Automation waiting for \(holder, privacy: .public) to release the sync lock.") }
-            attempts += 1
-            try await Task.sleep(nanoseconds: 500_000_000)
-        }
-    }
-
     private func acquireSyncLock(_ operation: String = #function) throws {
-        if let syncLockHolder {
-            AppLog.sync.warning("Rejected \(operation, privacy: .public): \(syncLockHolder, privacy: .public) holds the sync lock.")
-            throw LiveSyncRuntimeError.syncInProgress
-        }
-        syncLockHolder = operation
+        try syncCoordinator.acquire(operation)
     }
 
     private func releaseSyncLock() {
-        syncLockHolder = nil
+        syncCoordinator.release()
     }
 
     static func validateAutomatedSetup(repository: SyncRepository) throws {
@@ -314,18 +286,6 @@ final class LiveSyncRuntime {
         guard checkpoints.lastSleepQueryEnd != nil, checkpoints.lastHeartRateEnd != nil else {
             throw AutomatedSyncError.initialManualSyncRequired
         }
-    }
-}
-
-extension Notification.Name {
-    static let automationSyncFinished = Notification.Name("org.shpaq.WHOOPHealthSync.automationSyncFinished")
-}
-
-enum LiveSyncRuntimeError: Error, LocalizedError {
-    case syncInProgress
-
-    var errorDescription: String? {
-        String(localized: "Another HealthDataBridge sync is still running. Try again when it finishes.")
     }
 }
 

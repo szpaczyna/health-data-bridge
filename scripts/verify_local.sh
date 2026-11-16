@@ -85,6 +85,7 @@ swiftc -sdk "$host_sdk" -target "$host_target" \
   iOS/WHOOPHealthSync/Services/SyncEngine.swift \
   iOS/WHOOPHealthSync/Services/HealthKitRecoveryAdapter.swift \
   iOS/WHOOPHealthSync/Services/LiveSyncRuntime.swift \
+  iOS/WHOOPHealthSync/Services/SyncCoordinator.swift \
   iOS/WHOOPHealthSync/UI/SyncViewModel.swift \
   scripts/view_model_smoke_check.swift \
   "$build_path"/WHOOPHealthSyncCore.build/*.swift.o \
@@ -123,12 +124,24 @@ swiftc -sdk "$host_sdk" -target "$host_target" \
   iOS/WHOOPHealthSync/Services/SyncEngine.swift \
   iOS/WHOOPHealthSync/Services/HealthKitRecoveryAdapter.swift \
   iOS/WHOOPHealthSync/Services/LiveSyncRuntime.swift \
+  iOS/WHOOPHealthSync/Services/SyncCoordinator.swift \
   iOS/WHOOPHealthSync/Intents/SynchronizeWhoopIntent.swift \
   scripts/app_intents_smoke_check.swift \
   "$build_path"/WHOOPHealthSyncCore.build/*.swift.o \
   -o "$app_intents_smoke_binary"
 "$app_intents_smoke_binary"
 rm -f "$app_intents_smoke_binary"
+
+sync_coordinator_smoke_binary="$(mktemp -t whoop-sync-coordinator-smoke)"
+swiftc -sdk "$host_sdk" -target "$host_target" \
+  -I "$build_path/Modules" \
+  iOS/WHOOPHealthSync/AppLog.swift \
+  iOS/WHOOPHealthSync/Services/SyncCoordinator.swift \
+  scripts/sync_coordinator_smoke_check.swift \
+  "$build_path"/WHOOPHealthSyncCore.build/*.swift.o \
+  -o "$sync_coordinator_smoke_binary"
+"$sync_coordinator_smoke_binary"
+rm -f "$sync_coordinator_smoke_binary"
 
 plutil -lint \
   iOS/WHOOPHealthSync/Info.plist \
@@ -251,6 +264,10 @@ if ! grep -q 'SynchronizeWhoopIntent.swift in Sources' "$project_file"; then
 fi
 if ! grep -q 'LiveSyncRuntime.swift in Sources' "$project_file"; then
   echo "Shared live sync runtime is not included in target sources." >&2
+  exit 1
+fi
+if ! grep -q 'SyncCoordinator.swift in Sources' "$project_file"; then
+  echo "Sync coordinator is not included in target sources." >&2
   exit 1
 fi
 
