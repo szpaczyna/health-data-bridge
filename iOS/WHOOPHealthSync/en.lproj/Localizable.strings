@@ -267,7 +267,5 @@
 "failed" = "failed";
 "in progress" = "in progress";
 "unknown" = "unknown";
-"Read-only diagnostic. It does not write to Health or change sync progress. The private hrv_rmssd field is in seconds: the ×1000 conversion to ms is backed by the seven WHOOP references provided. Compare by sleep end date: 2026-09-13=46 ms, 2026-09-14=59 ms, 2026-09-15=48 ms. Declared approximate start of use: December 2025; nothing before that month is queried." = "Read-only diagnostic. It does not write to Health or change sync progress. The private hrv_rmssd field is in seconds: the ×1000 conversion to ms is backed by the seven WHOOP references provided. Compare by sleep end date: 2026-09-13=46 ms, 2026-09-14=59 ms, 2026-09-15=48 ms. Declared approximate start of use: December 2025; nothing before that month is queried.";
+"Read-only diagnostic. It does not write to Health or change sync progress. The private hrv_rmssd field is in seconds and is shown in ms (×1000)." = "Read-only diagnostic. It does not write to Health or change sync progress. The private hrv_rmssd field is in seconds and is shown in ms (×1000).";
 "Last seven days" = "Last seven days";
-"Declared approximate start: December 2025 (monthly probe; does not prove completeness)" = "Declared approximate start: December 2025 (monthly probe; does not prove completeness)";
-"Query not completed; this does not mean the history is empty." = "Query not completed; this does not mean the history is empty.";
