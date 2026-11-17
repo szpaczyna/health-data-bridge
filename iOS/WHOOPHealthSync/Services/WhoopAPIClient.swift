@@ -106,16 +106,22 @@ actor WhoopAPIClient {
 
     func fetchSleepActivities(userID: String, start: Date, end: Date) async throws -> [WhoopSleepActivity] {
         do {
-            let json = try await getJSON(
-                path: "/core-details-bff/v0/cycles/details",
-                query: [
-                    "id": userID,
-                    "startTime": Self.isoString(start),
-                    "endTime": Self.isoString(end),
-                    "limit": "50"
-                ]
-            )
-            let activities = WhoopPayloadAdapters.sleepActivities(fromCyclesJSON: json)
+            // The cycles route caps each response at 50 records; 7-day slices stay far below it.
+            var collected: [WhoopSleepActivity] = []
+            for slice in SyncWindowPlanner.heartRateChunks(window: TimeRange(start: start, end: end), maxChunkSeconds: 7 * 86_400) {
+                try Task.checkCancellation()
+                let json = try await getJSON(
+                    path: "/core-details-bff/v0/cycles/details",
+                    query: [
+                        "id": userID,
+                        "startTime": Self.isoString(slice.start),
+                        "endTime": Self.isoString(slice.end),
+                        "limit": "50"
+                    ]
+                )
+                collected += WhoopPayloadAdapters.sleepActivities(fromCyclesJSON: json)
+            }
+            let activities = WhoopPayloadAdapters.latestSleepActivities(collected)
             if !activities.isEmpty {
                 return activities
             }
