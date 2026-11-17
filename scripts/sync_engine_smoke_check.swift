@@ -88,6 +88,8 @@ struct SyncEngineSmokeCheck {
         expect(diagnostics.recentEvents.contains { $0.category == "sleep.write" }, "Sync should persist sleep write events.")
         expect(diagnostics.recentEvents.contains { $0.category == "hr.write" }, "Sync should persist HR write events.")
         expect(diagnostics.recentEvents.allSatisfy { $0.runID != nil }, "Sync events should be associated with a run ID.")
+        let stored = try String(contentsOf: fileURL, encoding: .utf8)
+        expect(stored.components(separatedBy: "Sync finished:").count == 3, "The final event of each sync must reach disk.")
     }
 
     @MainActor
@@ -354,6 +356,7 @@ struct SyncEngineSmokeCheck {
         expect(checkpoints.lastSleepQueryEnd != nil, "Completed sleep pipeline should keep its checkpoint before a later auth failure.")
         expect(checkpoints.lastHeartRateEnd == nil, "Failed HR auth should not advance the HR checkpoint.")
         expect(repository.diagnostics().lastRunStatus == .failed, "Auth failure should mark the run as failed.")
+        try expect(try String(contentsOf: fileURL, encoding: .utf8).contains("Sync failed:"), "The failure event must reach disk.")
     }
 
     @MainActor

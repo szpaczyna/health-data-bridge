@@ -233,6 +233,7 @@ final class SyncRepository {
     }
 
     func appendEvent(runID: UUID?, level: String, category: String, message: String) throws {
+        try ensureUsable()
         snapshot.events.append(
             SyncEventRecord(
                 runID: runID,
@@ -244,7 +245,6 @@ final class SyncRepository {
         if snapshot.events.count > maxStoredEvents {
             snapshot.events.removeFirst(snapshot.events.count - maxStoredEvents)
         }
-        try save()
     }
 
     func setHeartRateCheckpoint(_ date: Date, resolution: Int) throws {
