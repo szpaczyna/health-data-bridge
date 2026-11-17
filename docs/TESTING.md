@@ -4,13 +4,12 @@
 
 ```sh
 swift test --jobs 2
-swift run --jobs 2 WHOOPHealthSyncCoreChecks
 bash scripts/verify_local.sh
 ```
 
 Core tests cover normalization, overlap reconciliation, stable identifiers, recovery revisions, WAL/checkpoint recovery, bounded private-provider pagination, retry deadlines, account mismatch and incomplete history. Service checks cover authentication mocks, private-API transport mocks, persistence, legacy sleep/heart-rate scenarios, recovery setup, failed authorization, dedicated import, metadata, App Intents and capability/privacy lint. Public fixtures use synthetic identities and health values.
 
-GitHub Actions runs core XCTest and core checks. It does not call WHOOP or write HealthKit samples. Hosted CI does not certify the physical iPhone acceptance cases below.
+GitHub Actions runs core XCTest and `scripts/verify_local.sh`. It does not call WHOOP or write HealthKit samples. Hosted CI does not certify the physical iPhone acceptance cases below.
 
 ## Isolated simulator tests
 

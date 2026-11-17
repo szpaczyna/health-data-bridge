@@ -1,38 +1,8 @@
-import Foundation
-import WHOOPHealthSyncCore
+import XCTest
+@testable import WHOOPHealthSyncCore
 
-@main
-struct CoreChecks {
-    static func main() throws {
-        try testExternalDetailedSleepBlocksWhoopStages()
-        try testGenericSleepDoesNotBlockDetailedWhoopStages()
-        try testPartialExternalDetailedCoverageOnlyWritesGaps()
-        try testOwnSleepSampleIsDeletedWhenExternalCoverageAppearsLater()
-        testHeartRateExternalSampleBlocksWriteAndRemovesOwnOverlap()
-        testHeartRateInstantExternalSampleBlocksWrite()
-        testHeartRateOwnEquivalentSampleIsIdempotent()
-        testHeartRateOwnDifferentResolutionDoesNotBlockWrite()
-        testIncrementalPlannerBacksUpOneHeartRateBucket()
-        testIncrementalPlannerUsesStoredHeartRateResolutionOverlap()
-        testIncrementalPlannerRevisitsLateArrivingHeartRate()
-        testHeartRateChunksCoverWindowWithoutOverlap()
-        testSleepQueryWindowIncludesRevisionLookback()
-        try testWhoopUserAndCyclePayloadParsing()
-        try testWhoopSleepEventsPayloadParsing()
-        try testWhoopHeartRatePayloadParsing()
-        try testDeterministicSyncIdentifiers()
-        try testMigrationSleepWritesOnlyGapsThenBecomesIdempotent()
-        testMigrationHeartRateWritesOnlyUncoveredBucketsThenBecomesIdempotent()
-        try testWhoopSleepRevisionDeletesOnlyOwnSamplesAndRewritesGaps()
-        try testWhoopSleepRevisionUsesHealthKitFingerprintWhenRepositoryIsMissing()
-        try testWhoopSleepFallbackIDMigrationUsesFingerprint()
-        try testUnrelatedOwnSleepIsNotDeletedByCrossIDRevision()
-        testSyncSummaryMergeCombinesCountersAndErrors()
-        testSyncSummaryMergeCombinesWindows()
-        print("WHOOPHealthSyncCoreChecks passed")
-    }
-
-    static func testExternalDetailedSleepBlocksWhoopStages() throws {
+final class CoreChecksTests: XCTestCase {
+    func testExternalDetailedSleepBlocksWhoopStages() throws {
         let session = try normalizedSession(stages: [
             stage(0, 60, .core),
             stage(60, 120, .rem)
@@ -58,7 +28,7 @@ struct CoreChecks {
         expect(plan.skippedDetailedFragments == 2, "Both WHOOP phases should be counted as covered.")
     }
 
-    static func testGenericSleepDoesNotBlockDetailedWhoopStages() throws {
+    func testGenericSleepDoesNotBlockDetailedWhoopStages() throws {
         let session = try normalizedSession(stages: [
             stage(0, 60, .core),
             stage(60, 120, .deep)
@@ -83,7 +53,7 @@ struct CoreChecks {
         expect(plan.fragmentsToWrite.map(\.interval.range) == [range(0, 60), range(60, 120)], "Generic sleep must not block detailed phases.")
     }
 
-    static func testPartialExternalDetailedCoverageOnlyWritesGaps() throws {
+    func testPartialExternalDetailedCoverageOnlyWritesGaps() throws {
         let session = try normalizedSession(stages: [
             stage(0, 100, .core)
         ])
@@ -107,7 +77,7 @@ struct CoreChecks {
         expect(plan.fragmentsToWrite.map(\.interval.range) == [range(0, 40), range(70, 100)], "Partial coverage should only leave gaps.")
     }
 
-    static func testOwnSleepSampleIsDeletedWhenExternalCoverageAppearsLater() throws {
+    func testOwnSleepSampleIsDeletedWhenExternalCoverageAppearsLater() throws {
         let session = try normalizedSession(stages: [
             stage(0, 60, .core)
         ])
@@ -140,7 +110,7 @@ struct CoreChecks {
         expect(plan.fragmentsToWrite.isEmpty, "External detailed coverage should prevent rewriting.")
     }
 
-    static func testHeartRateExternalSampleBlocksWriteAndRemovesOwnOverlap() {
+    func testHeartRateExternalSampleBlocksWriteAndRemovesOwnOverlap() {
         let point = HeartRatePoint(timestamp: date(0), bpm: 62, sourceStepSeconds: 6)
         let existing = [
             ExistingHeartRateSample(id: "own", range: range(0, 6), bpm: 62, isOwnedByApp: true, syncIdentifier: "own"),
@@ -158,7 +128,7 @@ struct CoreChecks {
         expect(plan.externalDuplicateCount == 1, "External duplicate should be counted.")
     }
 
-    static func testHeartRateInstantExternalSampleBlocksWrite() {
+    func testHeartRateInstantExternalSampleBlocksWrite() {
         let points = [
             HeartRatePoint(timestamp: date(0), bpm: 62, sourceStepSeconds: 6),
             HeartRatePoint(timestamp: date(6), bpm: 63, sourceStepSeconds: 6)
@@ -179,7 +149,7 @@ struct CoreChecks {
         expect(plan.externalDuplicateCount == 2, "Instant external HR samples should count as external duplicates.")
     }
 
-    static func testHeartRateOwnEquivalentSampleIsIdempotent() {
+    func testHeartRateOwnEquivalentSampleIsIdempotent() {
         let point = HeartRatePoint(timestamp: date(0), bpm: 62, sourceStepSeconds: 6)
         let existing = [
             ExistingHeartRateSample(id: "own", range: range(0, 6), bpm: 62.2, isOwnedByApp: true, syncIdentifier: "own")
@@ -196,7 +166,7 @@ struct CoreChecks {
         expect(plan.skippedPointCount == 1, "Equivalent own HR should count as skipped.")
     }
 
-    static func testHeartRateOwnDifferentResolutionDoesNotBlockWrite() {
+    func testHeartRateOwnDifferentResolutionDoesNotBlockWrite() {
         let oneMinutePoint = HeartRatePoint(timestamp: date(0), bpm: 62, sourceStepSeconds: 60)
         let sixSecondSamples = [
             ExistingHeartRateSample(id: "own-0", range: range(0, 6), bpm: 62, isOwnedByApp: true, syncIdentifier: "heart-rate:0:6"),
@@ -226,7 +196,7 @@ struct CoreChecks {
         expect(upgradePlan.ownSamplesToDelete.map(\.id) == ["own-60"], "Stale wide own sample should be removed once when upgrading to finer resolution.")
     }
 
-    static func testIncrementalPlannerBacksUpOneHeartRateBucket() {
+    func testIncrementalPlannerBacksUpOneHeartRateBucket() {
         let now = date(1_000)
         let checkpoints = SyncCheckpointState(lastHeartRateEnd: date(500), lastSleepQueryEnd: date(400))
 
@@ -243,7 +213,7 @@ struct CoreChecks {
         expect(plan.isFirstSleepSync == false, "Sleep should not be marked first sync.")
     }
 
-    static func testIncrementalPlannerUsesStoredHeartRateResolutionOverlap() {
+    func testIncrementalPlannerUsesStoredHeartRateResolutionOverlap() {
         let now = date(1_000)
         let checkpoints = SyncCheckpointState(
             lastHeartRateEnd: date(500),
@@ -261,7 +231,7 @@ struct CoreChecks {
         expect(plan.heartRateWindow == range(440, 1_000), "HR should back up by the stored effective resolution when it is wider than the preferred step.")
     }
 
-    static func testIncrementalPlannerRevisitsLateArrivingHeartRate() {
+    func testIncrementalPlannerRevisitsLateArrivingHeartRate() {
         let now = date(1_000_000)
         let plan = SyncWindowPlanner.makePlan(
             now: now,
@@ -272,7 +242,7 @@ struct CoreChecks {
         expect(plan.heartRateWindow == range(913_600, 1_000_000), "Incremental HR should recheck a bounded 24-hour window.")
     }
 
-    static func testHeartRateChunksCoverWindowWithoutOverlap() {
+    func testHeartRateChunksCoverWindowWithoutOverlap() {
         let chunks = SyncWindowPlanner.heartRateChunks(
             window: range(0, 21),
             maxChunkSeconds: 6
@@ -283,7 +253,7 @@ struct CoreChecks {
         expect(SyncWindowPlanner.heartRateChunks(window: range(0, 10), maxChunkSeconds: 0).isEmpty, "Invalid chunk sizes should produce no chunks.")
     }
 
-    static func testSleepQueryWindowIncludesRevisionLookback() {
+    func testSleepQueryWindowIncludesRevisionLookback() {
         let now = date(10_000)
         let plan = SyncWindowPlanner.makePlan(
             now: now,
@@ -298,7 +268,7 @@ struct CoreChecks {
         expect(SyncWindowPlanner.sleepQueryWindow(for: plan) == range(10_000 - 86_400, 10_000), "Sleep query should include revision lookback when it is earlier than the checkpoint.")
     }
 
-    static func testSyncSummaryMergeCombinesWindows() {
+    func testSyncSummaryMergeCombinesWindows() {
         var summary = SyncSummary()
         var other = SyncSummary()
         other.heartRateWindowStart = date(0)
@@ -314,7 +284,7 @@ struct CoreChecks {
         expect(summary.sleepQueryWindowEnd == date(30), "Summary merge should carry sleep query window end.")
     }
 
-    static func testWhoopUserAndCyclePayloadParsing() throws {
+    func testWhoopUserAndCyclePayloadParsing() throws {
         let userPayload = try json(
             """
             {
@@ -415,7 +385,7 @@ struct CoreChecks {
         expect(directActivities.first { $0.activityID == "sleep-generic-id" }?.isNap == true, "Direct generic sleep records should parse nap markers.")
     }
 
-    static func testWhoopSleepEventsPayloadParsing() throws {
+    func testWhoopSleepEventsPayloadParsing() throws {
         let activity = WhoopSleepActivity(
             activityID: "sleep-1",
             sourceUpdatedAt: iso("2026-07-12T09:00:00.000Z"),
@@ -589,7 +559,7 @@ struct CoreChecks {
         expect(epochStringSession.end == iso("2026-07-12T00:00:24.000Z"), "Sleep parser should parse millisecond epoch string end times.")
     }
 
-    static func testWhoopHeartRatePayloadParsing() throws {
+    func testWhoopHeartRatePayloadParsing() throws {
         let hrPayload = try json(
             """
             {
@@ -651,7 +621,7 @@ struct CoreChecks {
         expect(nestedPoints.allSatisfy { $0.sourceStepSeconds == 60 }, "Nested HR parser should keep effective source resolution.")
     }
 
-    static func testDeterministicSyncIdentifiers() throws {
+    func testDeterministicSyncIdentifiers() throws {
         let sleepID = SyncIdentifiers.sleep(
             whoopSleepID: "sleep-1",
             stage: .rem,
@@ -667,7 +637,7 @@ struct CoreChecks {
         expect(heartRateID == "heart-rate:1783814406000:6", "Heart-rate sync identifier should be deterministic.")
     }
 
-    static func testMigrationSleepWritesOnlyGapsThenBecomesIdempotent() throws {
+    func testMigrationSleepWritesOnlyGapsThenBecomesIdempotent() throws {
         let appleWatchEra = try normalizedSession(
             id: "apple-era-whoop-sleep",
             start: 0,
@@ -744,7 +714,7 @@ struct CoreChecks {
         expect(secondPlan.ownSamplesToDelete.isEmpty, "Second sleep sync should not delete current app-owned samples.")
     }
 
-    static func testMigrationHeartRateWritesOnlyUncoveredBucketsThenBecomesIdempotent() {
+    func testMigrationHeartRateWritesOnlyUncoveredBucketsThenBecomesIdempotent() {
         let points = [
             HeartRatePoint(timestamp: date(0), bpm: 60, sourceStepSeconds: 6),
             HeartRatePoint(timestamp: date(6), bpm: 61, sourceStepSeconds: 6),
@@ -783,7 +753,7 @@ struct CoreChecks {
         expect(secondPlan.skippedPointCount == 4, "Second HR sync should account for all buckets as covered.")
     }
 
-    static func testWhoopSleepRevisionDeletesOnlyOwnSamplesAndRewritesGaps() throws {
+    func testWhoopSleepRevisionDeletesOnlyOwnSamplesAndRewritesGaps() throws {
         let revisedSession = try normalizedSession(
             id: "revised-sleep",
             start: 0,
@@ -831,7 +801,7 @@ struct CoreChecks {
         expect(plan.fragmentsToWrite.map(\.interval.stage) == [.deep, .rem], "WHOOP revision should preserve revised stages on rewritten gaps.")
     }
 
-    static func testWhoopSleepRevisionUsesHealthKitFingerprintWhenRepositoryIsMissing() throws {
+    func testWhoopSleepRevisionUsesHealthKitFingerprintWhenRepositoryIsMissing() throws {
         let oldSession = try normalizedSession(
             id: "metadata-revised-sleep",
             start: 0,
@@ -873,7 +843,7 @@ struct CoreChecks {
         expect(plan.fragmentsToWrite.map(\.interval.stage) == [.deep, .rem], "Current revised stages should be rewritten after stale metadata deletion.")
     }
 
-    static func testWhoopSleepFallbackIDMigrationUsesFingerprint() throws {
+    func testWhoopSleepFallbackIDMigrationUsesFingerprint() throws {
         let fallbackSession = try normalizedSession(
             id: "deep-dive-sleep:2026-07-12",
             start: 0,
@@ -930,7 +900,7 @@ struct CoreChecks {
         expect(revisedPlan.fragmentsToWrite.map(\.interval.stage) == [.deep, .rem], "Revised real activity should rewrite current stages after stale fallback samples are removed.")
     }
 
-    static func testUnrelatedOwnSleepIsNotDeletedByCrossIDRevision() throws {
+    func testUnrelatedOwnSleepIsNotDeletedByCrossIDRevision() throws {
         let currentSession = try normalizedSession(
             id: "real-current-sleep",
             start: 0,
@@ -969,7 +939,7 @@ struct CoreChecks {
         expect(plan.fragmentsToWrite.map(\.interval.stage) == [.rem], "Only uncovered stages should be written when unrelated own coverage exists.")
     }
 
-    static func testSyncSummaryMergeCombinesCountersAndErrors() {
+    func testSyncSummaryMergeCombinesCountersAndErrors() {
         var base = SyncSummary()
         base.sleepsDownloaded = 1
         base.sleepsDiscardedOutOfWindow = 1
@@ -995,11 +965,11 @@ struct CoreChecks {
         expect(base.errors == ["sleep-warning", "hr-warning"], "Merged summary should preserve error order.")
     }
 
-    static func normalizedSession(stages: [SleepStageInterval]) throws -> SleepSession {
+    func normalizedSession(stages: [SleepStageInterval]) throws -> SleepSession {
         try normalizedSession(id: "sleep-1", start: 0, end: 120, stages: stages)
     }
 
-    static func normalizedSession(id: String, start: TimeInterval, end: TimeInterval, stages: [SleepStageInterval]) throws -> SleepSession {
+    func normalizedSession(id: String, start: TimeInterval, end: TimeInterval, stages: [SleepStageInterval]) throws -> SleepSession {
         try SleepNormalizer.normalize(
             SleepSession(
                 whoopSleepID: id,
@@ -1013,19 +983,19 @@ struct CoreChecks {
         )
     }
 
-    static func stage(_ start: TimeInterval, _ end: TimeInterval, _ sleepStage: SleepStage) -> SleepStageInterval {
+    func stage(_ start: TimeInterval, _ end: TimeInterval, _ sleepStage: SleepStage) -> SleepStageInterval {
         SleepStageInterval(start: date(start), end: date(end), stage: sleepStage)
     }
 
-    static func range(_ start: TimeInterval, _ end: TimeInterval) -> TimeRange {
+    func range(_ start: TimeInterval, _ end: TimeInterval) -> TimeRange {
         TimeRange(start: date(start), end: date(end))
     }
 
-    static func date(_ seconds: TimeInterval) -> Date {
+    func date(_ seconds: TimeInterval) -> Date {
         Date(timeIntervalSince1970: seconds)
     }
 
-    static func existingSleepValue(for stage: SleepStage) -> ExistingSleepValue {
+    func existingSleepValue(for stage: SleepStage) -> ExistingSleepValue {
         switch stage {
         case .awake:
             return .awake
@@ -1038,21 +1008,19 @@ struct CoreChecks {
         }
     }
 
-    static func iso(_ value: String) -> Date {
+    func iso(_ value: String) -> Date {
         guard let date = WhoopDateCodec.date(from: value) else {
             fatalError("Invalid ISO fixture date: \(value)")
         }
         return date
     }
 
-    static func json(_ string: String) throws -> Any {
+    func json(_ string: String) throws -> Any {
         let data = Data(string.utf8)
         return try JSONSerialization.jsonObject(with: data, options: [])
     }
 
-    static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
-        guard condition() else {
-            fatalError(message)
-        }
+    func expect(_ condition: @autoclosure () -> Bool, _ message: String, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(condition(), message, file: file, line: line)
     }
 }

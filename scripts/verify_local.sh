@@ -8,7 +8,7 @@ host_target="$(uname -m)-apple-macosx14.0"
 xcodebuild -version
 xcrun swiftc -version
 echo "Host SDK: $host_sdk; target: $host_target"
-swift run --build-system native --jobs 2 WHOOPHealthSyncCoreChecks
+swift build --build-system native --jobs 2
 
 build_path="$(swift build --build-system native --show-bin-path)"
 swiftc -sdk "$host_sdk" -target "$host_target" -typecheck -parse-as-library \

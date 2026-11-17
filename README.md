@@ -54,11 +54,10 @@ New users configure sleep, heart rate and compatible recovery HRV together after
 
 ```sh
 swift test --jobs 2
-swift run --jobs 2 WHOOPHealthSyncCoreChecks
 bash scripts/verify_local.sh
 ```
 
-The Swift package has no third-party package dependencies. GitHub Actions runs the core tests and core checks. HealthKit integration/UI tests require Xcode and an isolated simulator; they are not equivalent to the core CI job. See [Testing](docs/TESTING.md) for setup, previous results and remaining physical checks.
+The Swift package has no third-party package dependencies. GitHub Actions runs the core tests and `scripts/verify_local.sh`. HealthKit integration/UI tests require Xcode and an isolated simulator; they are not equivalent to the core CI job. See [Testing](docs/TESTING.md) for setup, previous results and remaining physical checks.
 
 ## Privacy and contributions
 
