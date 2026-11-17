@@ -289,6 +289,30 @@ struct RepositorySmokeCheck {
         do { _ = try corrupt.checkpoints(); fatalError("Corrupt checkpoints must throw") } catch {}
         do { try corrupt.setSleepCheckpoint(date(999)); fatalError("Corrupt store must reject writes") } catch {}
         try expect(try Data(contentsOf: corruptURL) == corruptBytes, "Corrupt original must be preserved.")
+        do { try corrupt.ensureUsable(); fatalError("A corrupt store must stay blocked on retry") } catch {}
+
+        // A store that was unreadable at launch (device locked) becomes usable once readable again.
+        if getuid() == 0 {
+            print("Skipping locked-store reload check: running as root ignores file permissions.")
+        } else {
+            let lockedURL = directory.appendingPathComponent("locked.json")
+            try SyncRepository(fileURL: lockedURL).setSleepCheckpoint(date(321))
+            let lockedOriginal = try SyncRepository(fileURL: lockedURL).checkpoints()
+            let lockedBytes = try Data(contentsOf: lockedURL)
+            try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: lockedURL.path)
+            let locked = SyncRepository(fileURL: lockedURL)
+            do { try locked.ensureUsable(); fatalError("An unreadable store must block") } catch {}
+            do { try locked.setSleepCheckpoint(date(999)); fatalError("An unreadable store must reject writes") } catch {}
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: lockedURL.path)
+            try expect(try Data(contentsOf: lockedURL) == lockedBytes, "A locked store is never overwritten.")
+            do { try locked.setHeartRateCheckpoint(date(888), resolution: 60); fatalError("save must not reload over a pending write") } catch {}
+            try locked.ensureUsable()
+            try expect(try locked.checkpoints() == lockedOriginal, "Reload after unlock restores the stored checkpoints.")
+            try locked.setHeartRateCheckpoint(date(654), resolution: 60)
+            let lockedReload = try SyncRepository(fileURL: lockedURL).checkpoints()
+            expect(lockedReload.lastSleepQueryEnd == date(321) && lockedReload.lastHeartRateEnd == date(654),
+                   "Writes after reload keep old data and add new progress.")
+        }
 
         let failureURL = directory.appendingPathComponent("failure.json")
         let originalRepo = SyncRepository(fileURL: failureURL)
@@ -298,8 +322,24 @@ struct RepositorySmokeCheck {
         do { try failing.setSleepCheckpoint(date(999)); fatalError("Injected write should fail") } catch {}
         try expect(try failing.checkpoints().lastSleepQueryEnd == date(123), "Failed write must roll back memory.")
         try expect(try Data(contentsOf: failureURL) == originalBytes, "Failed write must preserve disk.")
-        do { try failing.appendEvent(runID: nil, level: "info", category: "failed", message: "must not publish"); fatalError("Injected event should fail") } catch {}
-        expect(failing.diagnostics().recentEvents.isEmpty, "Failed event write must not leak uncommitted memory.")
+        try failing.appendEvent(runID: nil, level: "info", category: "failed", message: "must not publish")
+        do { try failing.setSleepCheckpoint(date(999)); fatalError("Injected write should fail") } catch {}
+        expect(failing.diagnostics().recentEvents.isEmpty, "Failed save must roll back unsaved events.")
+
+        let batchURL = directory.appendingPathComponent("batch.json")
+        var writeCount = 0
+        let batched = SyncRepository(fileURL: batchURL, writeData: { data, url in
+            writeCount += 1
+            try data.write(to: url, options: [.atomic])
+        })
+        for index in 0..<100 {
+            try batched.appendEvent(runID: nil, level: "info", category: "batch", message: "event \(index)")
+        }
+        expect(writeCount == 0, "Appending events must not write the store.")
+        try batched.setSleepCheckpoint(date(321))
+        expect(writeCount == 1, "The next save must persist pending events in one write.")
+        let batchedReloaded = SyncRepository(fileURL: batchURL)
+        expect(batchedReloaded.diagnostics().recentEvents.filter { $0.category == "batch" }.count == 100, "Pending events must persist with the next save.")
 
         var legacyObject = try JSONSerialization.jsonObject(with: originalBytes) as! [String: Any]
         legacyObject.removeValue(forKey: "schemaVersion"); legacyObject.removeValue(forKey: "recovery")
