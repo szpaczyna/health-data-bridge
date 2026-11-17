@@ -23,17 +23,7 @@ final class SyncRepository {
         self.fileURL = fileURL ?? Self.defaultStoreURL()
         self.writeData = writeData ?? Self.protectedAtomicWrite
         do {
-            self.snapshot = try Self.load(from: self.fileURL)
-            let journalURL = self.fileURL.appendingPathExtension("recovery-wal")
-            if let journal = try Self.readIfPresent(journalURL) {
-                let pending = try JSONDecoder().decode([String: RecoveryPendingOperation].self, from: journal)
-                self.snapshot.recovery.pendingOperations.merge(pending) { _, operation in operation }
-            }
-            if FileManager.default.fileExists(atPath: self.fileURL.path) {
-                let bytes = try Data(contentsOf: self.fileURL)
-                let object = try JSONSerialization.jsonObject(with: bytes) as? [String: Any]
-                self.migrationBackupNeeded = (object?["schemaVersion"] as? Int ?? 1) == 1
-            }
+            (self.snapshot, self.migrationBackupNeeded) = try Self.loadState(from: self.fileURL)
         } catch {
             self.snapshot = .empty
             self.loadError = SyncRepositoryError.storeUnavailable
@@ -41,8 +31,13 @@ final class SyncRepository {
         self.committedSnapshot = self.snapshot
     }
 
+    // A store opened while the device is locked is unreadable until first unlock, so retry the load.
     func ensureUsable() throws {
-        if let loadError { throw loadError }
+        guard loadError != nil else { return }
+        guard let state = try? Self.loadState(from: fileURL) else { throw SyncRepositoryError.storeUnavailable }
+        (snapshot, migrationBackupNeeded) = state
+        committedSnapshot = snapshot
+        loadError = nil
     }
 
     // Existing installations are recognized from their actual state, not a new onboarding flag.
@@ -424,7 +419,8 @@ final class SyncRepository {
 
     private func save() throws {
         do {
-            try ensureUsable()
+            // No reload here: a reload would discard the caller's pending mutation.
+            if let loadError { throw loadError }
             try FileManager.default.createDirectory(
                 at: fileURL.deletingLastPathComponent(),
                 withIntermediateDirectories: true
@@ -467,6 +463,22 @@ final class SyncRepository {
             guard failure.domain == NSCocoaErrorDomain, failure.code == NSFileReadNoSuchFileError else { throw error }
             return nil
         }
+    }
+
+    private static func loadState(from fileURL: URL) throws -> (SyncStoreSnapshot, Bool) {
+        var snapshot = try load(from: fileURL)
+        let journalURL = fileURL.appendingPathExtension("recovery-wal")
+        if let journal = try readIfPresent(journalURL) {
+            let pending = try JSONDecoder().decode([String: RecoveryPendingOperation].self, from: journal)
+            snapshot.recovery.pendingOperations.merge(pending) { _, operation in operation }
+        }
+        var migrationBackupNeeded = false
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            let bytes = try Data(contentsOf: fileURL)
+            let object = try JSONSerialization.jsonObject(with: bytes) as? [String: Any]
+            migrationBackupNeeded = (object?["schemaVersion"] as? Int ?? 1) == 1
+        }
+        return (snapshot, migrationBackupNeeded)
     }
 
     private static func load(from fileURL: URL) throws -> SyncStoreSnapshot {
