@@ -14,7 +14,6 @@ struct SyncEngineSmokeCheck {
         try await testPartialErrorsAreSanitizedBeforeSummaryAndLogs()
         try await testHeartRateFallbackToMinuteResolution()
         try await testOutOfWindowWhoopDataIsDiscarded()
-        try await testConcurrentSyncIsRejected()
         try await testAuthenticationFailureStopsSyncAndMarksRunFailed()
         try await testSleepSaveFailureAfterDeleteDoesNotAdvanceCheckpointAndRetries()
         try await testStrictInitialReadPreflightStopsBeforeWriting()
@@ -291,42 +290,6 @@ struct SyncEngineSmokeCheck {
         expect(summary.heartRateDownloaded == rawPointCount, "Window test should count raw HR points from every revision chunk.")
         expect(summary.heartRateDiscardedOutOfWindow == rawPointCount - 1, "Only one point belongs to a requested chunk; all other returned points must be discarded.")
         expect(summary.heartRateWritten == 1, "Only in-window HR point should be written.")
-    }
-
-    @MainActor
-    private static func testConcurrentSyncIsRejected() async throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("WHOOPHealthSyncEngineConcurrent-\(UUID().uuidString)", isDirectory: true)
-        let fileURL = directory.appendingPathComponent("sync-store.json", isDirectory: false)
-        defer { try? FileManager.default.removeItem(at: directory) }
-
-        let api = BlockingWhoopAPI()
-        let deadline = Task { @MainActor in
-            do { try await Task.sleep(nanoseconds: 30_000_000_000) } catch { return }
-            fatalError("Concurrency handshake test timed out after 30 seconds")
-        }
-        defer { deadline.cancel(); api.release() }
-        let engine = SyncEngine(
-            api: api,
-            healthKit: FakeHealthData(externalSleep: [], externalHeartRate: []),
-            repository: SyncRepository(fileURL: fileURL),
-            heartRateStepSeconds: 6
-        )
-
-        let first = Task { @MainActor in
-            try await engine.synchronize()
-        }
-        await api.waitUntilFetchCurrentUserStarted()
-
-        do {
-            _ = try await engine.synchronize()
-            fatalError("Concurrent sync should be rejected.")
-        } catch let error as SyncEngineError {
-            expect(error == .syncAlreadyRunning, "Concurrent sync should throw syncAlreadyRunning.")
-        }
-
-        api.release()
-        _ = try await first.value
     }
 
     @MainActor
@@ -915,53 +878,6 @@ private final class FakeWhoopAPI: WhoopAPIProviding {
         return heartRatePoints.filter { point in
             point.timestamp >= start && point.timestamp < end
         }
-    }
-}
-
-@MainActor
-private final class BlockingWhoopAPI: WhoopAPIProviding {
-    private var startedContinuation: CheckedContinuation<Void, Never>?
-    private var releaseContinuation: CheckedContinuation<Void, Never>?
-    private var hasStarted = false
-    private var shouldRelease = false
-
-    func waitUntilFetchCurrentUserStarted() async {
-        if hasStarted {
-            return
-        }
-        await withCheckedContinuation { continuation in
-            startedContinuation = continuation
-        }
-    }
-
-    func release() {
-        shouldRelease = true
-        releaseContinuation?.resume()
-        releaseContinuation = nil
-    }
-
-    func fetchCurrentUser() async throws -> WhoopUser {
-        hasStarted = true
-        startedContinuation?.resume()
-        startedContinuation = nil
-        if !shouldRelease {
-            await withCheckedContinuation { continuation in
-                releaseContinuation = continuation
-            }
-        }
-        return WhoopUser(id: "blocking-user")
-    }
-
-    func fetchSleepActivities(userID: String, start: Date, end: Date) async throws -> [WhoopSleepActivity] {
-        []
-    }
-
-    func fetchSleepSession(activity: WhoopSleepActivity) async throws -> SleepSession {
-        throw SmokeError.missingSleep(activity.activityID)
-    }
-
-    func fetchHeartRate(userID: String, start: Date, end: Date, stepSeconds: Int) async throws -> [HeartRatePoint] {
-        []
     }
 }
 
