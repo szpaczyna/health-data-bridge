@@ -104,6 +104,10 @@ public enum WhoopPayloadAdapters {
             }
         }
 
+        return latestSleepActivities(activities)
+    }
+
+    public static func latestSleepActivities(_ activities: [WhoopSleepActivity]) -> [WhoopSleepActivity] {
         var byID: [String: WhoopSleepActivity] = [:]
         for activity in activities {
             if let existing = byID[activity.activityID] {

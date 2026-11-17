@@ -112,6 +112,24 @@ struct WhoopAPISmokeCheck {
         }
 
         MockWhoopURLProtocol.clearRequests()
+        MockWhoopURLProtocol.cyclesReturnsEmpty = false
+        MockWhoopURLProtocol.deepDiveSleepStatusCode = 200
+        MockWhoopURLProtocol.cyclesPerDay = true
+        let longStart = iso("2026-05-01T00:00:00.000Z")
+        let longEnd = longStart.addingTimeInterval(60 * 86_400)
+        let longActivities = try await client.fetchSleepActivities(userID: user.id, start: longStart, end: longEnd)
+        expect(Set(longActivities.map(\.activityID)).count == 60, "Sleep discovery should not drop nights past the 50-record cycles limit.")
+        let longCyclesRequests = MockWhoopURLProtocol.requests.filter { $0.path == "/core-details-bff/v0/cycles/details" }
+        expect(longCyclesRequests.allSatisfy { request in
+            guard let start = request.query["startTime"].flatMap(WhoopDateCodec.date(from:)),
+                  let end = request.query["endTime"].flatMap(WhoopDateCodec.date(from:)) else { return false }
+            return end.timeIntervalSince(start) <= 7 * 86_400
+        }, "Each cycles request should span at most seven days.")
+        expect(longCyclesRequests.first?.query["startTime"] == WhoopDateCodec.isoString(longStart), "Sleep slices should start at the window start.")
+        expect(longCyclesRequests.last?.query["endTime"] == WhoopDateCodec.isoString(longEnd), "Last sleep slice should end at the window end.")
+        MockWhoopURLProtocol.cyclesPerDay = false
+
+        MockWhoopURLProtocol.clearRequests()
         MockWhoopURLProtocol.heartRateStatusCode = 500
         MockWhoopURLProtocol.heartRateErrorBody = [
             "message": "Failure for jose@example.com Authorization: Bearer secret-token password=secret-password refreshToken=refresh-secret jwt=header.payload.signature"
@@ -134,18 +152,12 @@ struct WhoopAPISmokeCheck {
         MockWhoopURLProtocol.cyclesReturnsEmpty = true
         let probe = try await client.probeRecoveryValues()
         let probeRequests = MockWhoopURLProtocol.requests.filter { $0.path == "/core-details-bff/v0/cycles/details" }
-        expect(probeRequests.count == 2, "Value diagnostic should query only recent data and the declared December start month.")
-        expect(probeRequests[1].query["startTime"] == WhoopDateCodec.isoString(iso("2025-12-01T00:00:00Z")), "Historical probe must start in the declared month, not one or three years ago.")
-        expect(probeRequests[1].query["endTime"] == WhoopDateCodec.isoString(iso("2026-01-01T00:00:00Z")), "Initial-month diagnostic must include all of December, including late-month starters.")
+        expect(probeRequests.count == 1, "Value diagnostic should make a single last-seven-days request.")
+        expect(!probe.contains("2026-09-13"), "Value diagnostic must not ship personal reference values.")
+        expect(!probe.contains("December"), "Value diagnostic must not reference a hard-coded start month.")
         expect(probeRequests.allSatisfy { $0.query["limit"] == "50" && $0.headers["Authorization"] == "Bearer fresh-access" }, "Diagnostic should remain bounded and reuse the current private session.")
-        expect(probe.contains("empty window does not prove the end"), "Empty initial month must not imply historical completion.")
+        expect(probe.contains("empty window does not prove the end"), "An empty window must not imply historical completion.")
         expect(!MockWhoopURLProtocol.requests.contains { $0.path.contains("deep-dive") || $0.path.contains("sleep-events") || $0.path.contains("metrics") }, "Recovery diagnostic must not trigger legacy sleep/HR fallbacks.")
-        MockWhoopURLProtocol.clearRequests()
-        MockWhoopURLProtocol.initialMonthStatusCode = 503
-        let unavailableMonth = try await client.probeRecoveryValues()
-        expect(unavailableMonth.contains("Query not completed; this does not mean the history is empty"), "A historical API failure must remain distinct from an empty window.")
-        expect(!unavailableMonth.contains("sensitive-month-error"), "Diagnostic should not expose server error payloads.")
-        MockWhoopURLProtocol.initialMonthStatusCode = 200
 
         MockWhoopURLProtocol.clearRequests()
         let recoveryRecords = try await client.fetchRecoveryCycleRecords(userID: user.id, window: TimeRange(start: start, end: end))
@@ -222,8 +234,8 @@ private final class MockWhoopURLProtocol: URLProtocol {
     }
 
     static var requests: [RecordedRequest] = []
-    static var initialMonthStatusCode = 200
     static var cyclesReturnsEmpty = false
+    static var cyclesPerDay = false
     static var cyclesStatusCode = 200
     static var retryAfter: String?
     static var deepDiveSleepStatusCode = 200
@@ -234,8 +246,8 @@ private final class MockWhoopURLProtocol: URLProtocol {
 
     static func reset() {
         requests.removeAll()
-        initialMonthStatusCode = 200
         cyclesReturnsEmpty = false
+        cyclesPerDay = false
         deepDiveSleepStatusCode = 200
         heartRateStatusCode = 200
         heartRateErrorBody = ["error": "heart-rate unavailable"]
@@ -327,11 +339,23 @@ private final class MockWhoopURLProtocol: URLProtocol {
 
         if request.path == "/core-details-bff/v0/cycles/details" {
             if Self.cyclesStatusCode != 200 { return (Self.cyclesStatusCode, ["error": "rate-limited"]) }
-            if request.query["startTime"]?.hasPrefix("2025-12-01") == true, Self.initialMonthStatusCode != 200 {
-                return (Self.initialMonthStatusCode, ["error": "sensitive-month-error"])
-            }
             if Self.cyclesReturnsEmpty {
                 return (200, ["records": []])
+            }
+            if Self.cyclesPerDay,
+               let start = request.query["startTime"].flatMap(WhoopDateCodec.date(from:)),
+               let end = request.query["endTime"].flatMap(WhoopDateCodec.date(from:)) {
+                var records: [[String: Any]] = []
+                var day = start
+                while day < end, records.count < 50 {
+                    let id = WhoopDateCodec.isoString(day)
+                    records.append([
+                        "cycle": ["id": "cycle-\(id)"],
+                        "sleeps": [["activity_id": "sleep-\(id)", "updated_at": id, "is_nap": false]]
+                    ])
+                    day = day.addingTimeInterval(86_400)
+                }
+                return (200, ["records": records])
             }
             return (
                 200,
