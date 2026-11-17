@@ -152,7 +152,6 @@ final class SyncEngine {
     private let requiresInitialHealthKitReadVisibility: Bool
     private let initialReadVisibilityLookbackDays: Int
     private let heartRateChunkSeconds: TimeInterval = 6 * 60 * 60
-    private var isSynchronizing = false
     private var interruptedSummary = SyncSummary()
     private(set) var lastSummary: SyncSummary?
     private let recoveryPipeline: RecoverySyncPipeline?
@@ -186,17 +185,9 @@ final class SyncEngine {
 
     func synchronize(recoveryMode: RecoveryRunMode, resumeDeferred: Bool = true,
                      historyWindow: TimeRange? = nil, origin: SyncOrigin = .manual) async throws -> SyncSummary {
-        guard !isSynchronizing else {
-            AppLog.sync.warning("Rejected concurrent \(origin.logLabel, privacy: .public) sync request.")
-            throw SyncEngineError.syncAlreadyRunning
-        }
-        isSynchronizing = true
         lastSummary = nil
         importingHistory = historyWindow != nil
-        defer {
-            isSynchronizing = false
-            importingHistory = false
-        }
+        defer { importingHistory = false }
 
         let startedAt = Date()
         var summary = SyncSummary()
@@ -681,13 +672,10 @@ final class SyncEngine {
 }
 
 enum SyncEngineError: Error, Equatable, LocalizedError {
-    case syncAlreadyRunning
     case healthKitReadVisibilityUnverified([String])
 
     var errorDescription: String? {
         switch self {
-        case .syncAlreadyRunning:
-            return "A manual sync is already running."
         case let .healthKitReadVisibilityUnverified(types):
             return "HealthKit read visibility could not be verified for \(types.joined(separator: ", ")). Sync stopped before writing to avoid duplicates; confirm Apple Health read access and existing samples are visible."
         }

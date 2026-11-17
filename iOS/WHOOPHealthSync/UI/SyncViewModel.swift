@@ -50,7 +50,6 @@ protocol SyncRunning {
 }
 
 extension HealthKitService: HealthKitAuthorizing {}
-extension SyncEngine: SyncRunning {}
 extension LiveSyncRuntime: HealthKitAuthorizing {
     func requestAuthorization() async throws {
         try await requestHealthKitAuthorization()
