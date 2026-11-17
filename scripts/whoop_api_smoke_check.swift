@@ -112,6 +112,24 @@ struct WhoopAPISmokeCheck {
         }
 
         MockWhoopURLProtocol.clearRequests()
+        MockWhoopURLProtocol.cyclesReturnsEmpty = false
+        MockWhoopURLProtocol.deepDiveSleepStatusCode = 200
+        MockWhoopURLProtocol.cyclesPerDay = true
+        let longStart = iso("2026-05-01T00:00:00.000Z")
+        let longEnd = longStart.addingTimeInterval(60 * 86_400)
+        let longActivities = try await client.fetchSleepActivities(userID: user.id, start: longStart, end: longEnd)
+        expect(Set(longActivities.map(\.activityID)).count == 60, "Sleep discovery should not drop nights past the 50-record cycles limit.")
+        let longCyclesRequests = MockWhoopURLProtocol.requests.filter { $0.path == "/core-details-bff/v0/cycles/details" }
+        expect(longCyclesRequests.allSatisfy { request in
+            guard let start = request.query["startTime"].flatMap(WhoopDateCodec.date(from:)),
+                  let end = request.query["endTime"].flatMap(WhoopDateCodec.date(from:)) else { return false }
+            return end.timeIntervalSince(start) <= 7 * 86_400
+        }, "Each cycles request should span at most seven days.")
+        expect(longCyclesRequests.first?.query["startTime"] == WhoopDateCodec.isoString(longStart), "Sleep slices should start at the window start.")
+        expect(longCyclesRequests.last?.query["endTime"] == WhoopDateCodec.isoString(longEnd), "Last sleep slice should end at the window end.")
+        MockWhoopURLProtocol.cyclesPerDay = false
+
+        MockWhoopURLProtocol.clearRequests()
         MockWhoopURLProtocol.heartRateStatusCode = 500
         MockWhoopURLProtocol.heartRateErrorBody = [
             "message": "Failure for jose@example.com Authorization: Bearer secret-token password=secret-password refreshToken=refresh-secret jwt=header.payload.signature"
@@ -224,6 +242,7 @@ private final class MockWhoopURLProtocol: URLProtocol {
     static var requests: [RecordedRequest] = []
     static var initialMonthStatusCode = 200
     static var cyclesReturnsEmpty = false
+    static var cyclesPerDay = false
     static var cyclesStatusCode = 200
     static var retryAfter: String?
     static var deepDiveSleepStatusCode = 200
@@ -236,6 +255,7 @@ private final class MockWhoopURLProtocol: URLProtocol {
         requests.removeAll()
         initialMonthStatusCode = 200
         cyclesReturnsEmpty = false
+        cyclesPerDay = false
         deepDiveSleepStatusCode = 200
         heartRateStatusCode = 200
         heartRateErrorBody = ["error": "heart-rate unavailable"]
@@ -332,6 +352,21 @@ private final class MockWhoopURLProtocol: URLProtocol {
             }
             if Self.cyclesReturnsEmpty {
                 return (200, ["records": []])
+            }
+            if Self.cyclesPerDay,
+               let start = request.query["startTime"].flatMap(WhoopDateCodec.date(from:)),
+               let end = request.query["endTime"].flatMap(WhoopDateCodec.date(from:)) {
+                var records: [[String: Any]] = []
+                var day = start
+                while day < end, records.count < 50 {
+                    let id = WhoopDateCodec.isoString(day)
+                    records.append([
+                        "cycle": ["id": "cycle-\(id)"],
+                        "sleeps": [["activity_id": "sleep-\(id)", "updated_at": id, "is_nap": false]]
+                    ])
+                    day = day.addingTimeInterval(86_400)
+                }
+                return (200, ["records": records])
             }
             return (
                 200,
