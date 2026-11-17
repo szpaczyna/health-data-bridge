@@ -158,6 +158,7 @@ final class SyncEngine {
     private var sleepBoundary: Date?
     private var heartRateBoundary: Date?
     private var importingHistory = false
+    private var mergingDeferred = false
 
     init(
         api: any WhoopAPIProviding,
@@ -187,7 +188,11 @@ final class SyncEngine {
                      historyWindow: TimeRange? = nil, origin: SyncOrigin = .manual) async throws -> SyncSummary {
         lastSummary = nil
         importingHistory = historyWindow != nil
-        defer { importingHistory = false }
+        mergingDeferred = resumeDeferred && historyWindow == nil
+        defer {
+            importingHistory = false
+            mergingDeferred = false
+        }
 
         let startedAt = Date()
         var summary = SyncSummary()
@@ -212,11 +217,16 @@ final class SyncEngine {
                 plan.sleepRevisionLookbackWindow = window
                 plan.syncStartedAt = window.end
             }
-            if resumeDeferred && historyWindow == nil {
-                if let window = try repository.deferredWindow(for: "sleep") {
+            try Task.checkCancellation()
+            sleepBoundary = try await healthKit.authorizedBoundary(for: "sleep")
+            heartRateBoundary = try await healthKit.authorizedBoundary(for: "heartRate")
+            // A deferred window is retried only once access covers its start; otherwise every run re-reads it in vain.
+            if mergingDeferred {
+                // shortcut: a partly widened boundary keeps the whole deferred window pending; history import recovers it.
+                if let window = try repository.deferredWindow(for: "sleep"), sleepBoundary.map({ $0 <= window.start }) ?? true {
                     plan.sleepDiscoveryWindow.start = min(plan.sleepDiscoveryWindow.start, window.start)
                 }
-                if let window = try repository.deferredWindow(for: "heartRate") {
+                if let window = try repository.deferredWindow(for: "heartRate"), heartRateBoundary.map({ $0 <= window.start }) ?? true {
                     plan.heartRateWindow.start = min(plan.heartRateWindow.start, window.start)
                 }
             }
@@ -235,8 +245,6 @@ final class SyncEngine {
             AppLog.sync.info("\(origin.logLabel, privacy: .public) sync started. HR \(plan.heartRateWindow.start, privacy: .public)-\(plan.heartRateWindow.end, privacy: .public)")
 
             try Task.checkCancellation()
-            sleepBoundary = try await healthKit.authorizedBoundary(for: "sleep")
-            heartRateBoundary = try await healthKit.authorizedBoundary(for: "heartRate")
             try await validateHealthKitReadVisibility(plan: plan, runID: run)
             recordEvent(runID: run, level: "info", category: "api", message: String(localized: "WHOOP user authenticated; ID received."))
             let sleep = try await syncSleep(user: user, plan: plan, runID: run)
@@ -265,8 +273,8 @@ final class SyncEngine {
             }
             summary.elapsedSeconds = Date().timeIntervalSince(startedAt)
             let status: SyncRunStatus = summary.hasIncompleteResults ? .partial : .success
-            try repository.finishRun(run, summary: summary, status: status)
             recordEvent(runID: run, level: status == .success ? "info" : "warning", category: "sync", message: String(localized: "Sync finished: \(status.rawValue). Sleeps downloaded=\(summary.sleepsDownloaded), stages written=\(summary.stagesWritten), HR downloaded=\(summary.heartRateDownloaded), HR written=\(summary.heartRateWritten), errors=\(summary.errors.count)."))
+            try repository.finishRun(run, summary: summary, status: status)
             AppLog.sync.info("\(origin.logLabel, privacy: .public) sync finished with status \(status.rawValue, privacy: .public).")
             lastSummary = summary
             return summary
@@ -286,8 +294,8 @@ final class SyncEngine {
             // Authentication/account failures are recorded without reading unvalidated checkpoints.
             let failedRun = activeRun ?? (try? repository.createRejectedRun(startedAt: startedAt))
             if let run = failedRun {
-                try? repository.finishRun(run, summary: summary, status: error is CancellationError ? .cancelled : .failed)
                 recordEvent(runID: run, level: "error", category: "sync", message: String(localized: "Sync failed: \(Self.message(error))"))
+                try? repository.finishRun(run, summary: summary, status: error is CancellationError ? .cancelled : .failed)
             }
             AppLog.sync.error("\(origin.logLabel, privacy: .public) sync failed: \(Self.message(error), privacy: .public)")
             throw error
@@ -371,8 +379,9 @@ final class SyncEngine {
         var summary = SyncSummary()
         defer { interruptedSummary = summary }
         let sleepWindow = SyncWindowPlanner.sleepQueryWindow(for: plan)
-        var sleepHadErrors = sleepBoundary.map { sleepWindow.start < $0 } ?? false
-        if sleepHadErrors { summary.errors.append("Sleep history is limited; earlier intervals remain pending.") }
+        // Ranges before the boundary go to the deferred window, so they do not hold back the checkpoint.
+        var sleepHadErrors = false
+        if sleepBoundary.map({ sleepWindow.start < $0 }) == true { summary.errors.append("Sleep history is limited; earlier intervals remain pending.") }
 
         do {
             if !importingHistory, let boundary = sleepBoundary, sleepWindow.start < boundary {
@@ -401,8 +410,7 @@ final class SyncEngine {
                     let healthKitWindowStart = session.start.addingTimeInterval(-5 * 60)
                     let healthKitWindowEnd = session.end.addingTimeInterval(5 * 60)
                     if let boundary = sleepBoundary, healthKitWindowStart < boundary {
-                        if !importingHistory { try repository.setDeferredWindow(TimeRange(start: healthKitWindowStart, end: healthKitWindowEnd), for: "sleep") }
-                        sleepHadErrors = true
+                        if importingHistory { sleepHadErrors = true } else { try repository.setDeferredWindow(TimeRange(start: healthKitWindowStart, end: healthKitWindowEnd), for: "sleep") }
                         summary.errors.append("Sleep interval deferred by historical access limit.")
                         continue
                     }
@@ -418,8 +426,9 @@ final class SyncEngine {
                     let recordsToDelete = existingSamples.filter { deleteIDs.contains($0.existing.id) }
                     try Task.checkCancellation()
                     if let refreshed = try await healthKit.authorizedBoundary(for: "sleep"), healthKitWindowStart < refreshed {
-                        if !importingHistory { try repository.setDeferredWindow(TimeRange(start: healthKitWindowStart, end: healthKitWindowEnd), for: "sleep") }
+                        // The run-end resolution uses the start-of-run boundary, so only an error keeps this night pending.
                         sleepHadErrors = true
+                        if !importingHistory { try repository.setDeferredWindow(TimeRange(start: healthKitWindowStart, end: healthKitWindowEnd), for: "sleep") }
                         summary.errors.append("Sleep access changed before writing; interval deferred.")
                         continue
                     }
@@ -457,7 +466,7 @@ final class SyncEngine {
             if !sleepHadErrors {
                 try Task.checkCancellation()
                 if !importingHistory {
-                    if sleepBoundary.map({ sleepWindow.start >= $0 }) ?? true { try repository.setDeferredWindow(nil, for: "sleep") }
+                    if try deferredWindowResolved("sleep", windowStart: sleepWindow.start, boundary: sleepBoundary) { try repository.setDeferredWindow(nil, for: "sleep") }
                     try repository.setSleepCheckpoint(plan.sleepDiscoveryWindow.end)
                 }
                 recordEvent(runID: runID, level: "info", category: "sleep.checkpoint", message: String(localized: "Sleep checkpoint updated to \(Self.iso(plan.sleepDiscoveryWindow.end))."))
@@ -489,6 +498,17 @@ final class SyncEngine {
         for chunk in chunks {
             do {
                 try Task.checkCancellation()
+                if !importingHistory, let boundary = heartRateBoundary, chunk.start < boundary {
+                    try repository.setDeferredWindow(TimeRange(start: chunk.start, end: min(chunk.end, boundary)), for: "heartRate")
+                }
+                if chunk.start < (heartRateBoundary ?? .distantPast) {
+                    if !summary.errors.contains("Heart-rate history is limited; earlier intervals remain pending.") {
+                        summary.errors.append("Heart-rate history is limited; earlier intervals remain pending.")
+                    }
+                }
+                if chunk.end <= (heartRateBoundary ?? .distantPast) {
+                    continue
+                }
                 let fetch = try await fetchHeartRateWithFallback(
                     userID: user.id,
                     chunk: chunk,
@@ -510,17 +530,6 @@ final class SyncEngine {
                 }
                 let points = pointsInChunk.filter { point in
                     heartRateBoundary.map { HeartRateCoverageReconciler.bucket(for: point, stepSeconds: activeStepSeconds, semantics: .bucketStart).start >= $0 } ?? true
-                }
-                if !importingHistory, let boundary = heartRateBoundary, chunk.start < boundary {
-                    try repository.setDeferredWindow(TimeRange(start: chunk.start, end: min(chunk.end, boundary)), for: "heartRate")
-                }
-                if chunk.start < (heartRateBoundary ?? .distantPast) {
-                    if !summary.errors.contains("Heart-rate history is limited; earlier intervals remain pending.") {
-                        summary.errors.append("Heart-rate history is limited; earlier intervals remain pending.")
-                    }
-                }
-                if chunk.end <= (heartRateBoundary ?? .distantPast) {
-                    continue
                 }
                 recordEvent(runID: runID, level: "info", category: "hr.api", message: String(localized: "HR chunk \(Self.iso(chunk.start)) → \(Self.iso(chunk.end)): \(rawPoints.count) downloaded, \(points.count) inside, resolution \(activeStepSeconds)s."))
                 AppLog.heartRate.info("Downloaded \(rawPoints.count) HR points for chunk \(chunk.start, privacy: .public)-\(chunk.end, privacy: .public); \(points.count) inside chunk.")
@@ -575,10 +584,17 @@ final class SyncEngine {
             }
         }
 
-        if !importingHistory && (heartRateBoundary.map({ plan.heartRateWindow.start >= $0 }) ?? true) {
+        if try !importingHistory && deferredWindowResolved("heartRate", windowStart: plan.heartRateWindow.start, boundary: heartRateBoundary) {
             try repository.setDeferredWindow(nil, for: "heartRate")
         }
         return summary
+    }
+
+    // Only a run that merged the deferred window and could read all of it may clear it.
+    private func deferredWindowResolved(_ type: String, windowStart: Date, boundary: Date?) throws -> Bool {
+        guard mergingDeferred else { return false }
+        guard let boundary else { return true }
+        return try windowStart >= boundary && (repository.deferredWindow(for: type).map { $0.start >= boundary } ?? true)
     }
 
     private func fetchHeartRateWithFallback(

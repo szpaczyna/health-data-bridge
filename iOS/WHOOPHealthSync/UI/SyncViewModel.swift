@@ -610,10 +610,12 @@ final class SyncViewModel: ObservableObject {
 
     private func refreshDiagnostics() {
         repositoryAvailable = repository != nil && (try? repository?.ensureUsable()) != nil
+        let unavailable = String(localized: "Local sync data unavailable; synchronization is blocked. Retry opening the app when data is accessible.")
         guard repositoryAvailable else {
-            if repository?.loadError != nil { errors = [String(localized: "Local sync data unavailable; synchronization is blocked. Retry opening the app when data is accessible.")] }
+            if repository?.loadError != nil { errors = [unavailable] }
             return
         }
+        errors.removeAll { $0 == unavailable }
         setupCompleted = repository?.hasCompletedSyncSetup == true
         pendingHistoryWindow = try? repository?.historyWindow()
         hasPendingHistoryImport = repository?.hasPendingHistoryImport == true

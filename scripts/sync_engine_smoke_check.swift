@@ -20,6 +20,10 @@ struct SyncEngineSmokeCheck {
         try await testInitialReadPreflightUsesWideVisibilityWindowWithoutExpandingWrites()
         try await testOngoingReadVisibilityGuardStopsBeforeWritingWhenHealthKitReadsDisappear()
         try await testHistoricalAccessBoundariesAndExpansion()
+        try await testFixedBoundaryAdvancesSleepCheckpointAcrossRuns()
+        try await testSleepAccessShrinkBeforeWriteKeepsNightPending()
+        try await testRunWithoutDeferredResumeKeepsDeferredWindows()
+        try await testDeferredWindowBeforeBoundaryIsNotMerged()
         try await testCancelledSleepDoesNotAdvanceOrContinueHeartRate()
         try await testRecoveryCapabilityGatesPreserveExistingFlows()
         try await testLegacyAccountBindingAndChangedAccountStopBeforeQueries()
@@ -87,6 +91,8 @@ struct SyncEngineSmokeCheck {
         expect(diagnostics.recentEvents.contains { $0.category == "sleep.write" }, "Sync should persist sleep write events.")
         expect(diagnostics.recentEvents.contains { $0.category == "hr.write" }, "Sync should persist HR write events.")
         expect(diagnostics.recentEvents.allSatisfy { $0.runID != nil }, "Sync events should be associated with a run ID.")
+        let stored = try String(contentsOf: fileURL, encoding: .utf8)
+        expect(stored.components(separatedBy: "Sync finished:").count == 3, "The final event of each sync must reach disk.")
     }
 
     @MainActor
@@ -317,6 +323,7 @@ struct SyncEngineSmokeCheck {
         expect(checkpoints.lastSleepQueryEnd != nil, "Completed sleep pipeline should keep its checkpoint before a later auth failure.")
         expect(checkpoints.lastHeartRateEnd == nil, "Failed HR auth should not advance the HR checkpoint.")
         expect(repository.diagnostics().lastRunStatus == .failed, "Auth failure should mark the run as failed.")
+        try expect(try String(contentsOf: fileURL, encoding: .utf8).contains("Sync failed:"), "The failure event must reach disk.")
     }
 
     @MainActor
@@ -598,6 +605,85 @@ struct SyncEngineSmokeCheck {
         try expect(try repository.deferredWindow(for: "heartRate") == nil, "Resolved HR deferral must clear.")
     }
     @MainActor
+    private static func testFixedBoundaryAdvancesSleepCheckpointAcrossRuns() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("fixed-boundary-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let boundary = Date().addingTimeInterval(-86400)
+        let readable = try makeSleepSession(id: "readable", start: Date().addingTimeInterval(-7200))
+        let crossing = try makeSleepSession(id: "crossing", start: boundary.addingTimeInterval(-1800))
+        let health = FakeHealthData(externalSleep: [], externalHeartRate: [])
+        health.sleepBoundary = boundary; health.heartRateBoundary = boundary
+        let repository = SyncRepository(fileURL: url)
+        let api = FakeWhoopAPI(sleeps: [readable, crossing], heartRatePoints: [HeartRatePoint(timestamp: Date().addingTimeInterval(-60), bpm: 60, sourceStepSeconds: 6)])
+        let engine = SyncEngine(api: api, healthKit: health, repository: repository)
+        let first = try await engine.synchronize()
+        expect(first.stagesWritten == readable.stages.count, "The readable night must be written under a fixed boundary.")
+        let firstSleepEnd = try repository.checkpoints().lastSleepQueryEnd
+        try expect(firstSleepEnd != nil && repository.checkpoints().lastHeartRateEnd != nil, "A fixed boundary must not block either checkpoint.")
+        _ = try await engine.synchronize()
+        let secondSleepEnd = try repository.checkpoints().lastSleepQueryEnd
+        expect(secondSleepEnd.map { $0 >= firstSleepEnd! } == true, "The sleep checkpoint must not move back on the next run.")
+        try expect(try repository.deferredWindow(for: "sleep").map { $0.start < boundary } == true, "The range before the boundary must stay pending.")
+        try expect(try repository.deferredWindow(for: "heartRate") != nil, "The HR range before the boundary must stay pending.")
+        expect(api.requestedHeartRateRanges.allSatisfy { $0.end > boundary }, "HR chunks ending at or before the boundary must not be downloaded.")
+    }
+
+    @MainActor
+    private static func testSleepAccessShrinkBeforeWriteKeepsNightPending() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("shrink-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let night = try makeSleepSession(id: "shrink", start: Date().addingTimeInterval(-7200))
+        let health = FakeHealthData(externalSleep: [], externalHeartRate: [])
+        health.sleepBoundarySequence = [nil]
+        health.sleepBoundary = night.start.addingTimeInterval(1)
+        let repository = SyncRepository(fileURL: url)
+        let api = FakeWhoopAPI(sleeps: [night], heartRatePoints: [HeartRatePoint(timestamp: Date().addingTimeInterval(-60), bpm: 60, sourceStepSeconds: 6)])
+        let summary = try await SyncEngine(api: api, healthKit: health, repository: repository).synchronize()
+        expect(summary.stagesWritten == 0, "A night whose access shrank before writing must not be written.")
+        try expect(try repository.deferredWindow(for: "sleep") != nil, "A night deferred mid-run must stay pending.")
+        try expect(try repository.checkpoints().lastSleepQueryEnd == nil, "The sleep checkpoint must not advance past a night deferred mid-run.")
+    }
+
+    @MainActor
+    private static func testRunWithoutDeferredResumeKeepsDeferredWindows() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("no-resume-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let now = Date()
+        let deferred = TimeRange(start: now.addingTimeInterval(-3 * 86400), end: now.addingTimeInterval(-2 * 86400))
+        let repository = SyncRepository(fileURL: url)
+        try repository.setDeferredWindow(deferred, for: "sleep")
+        try repository.setDeferredWindow(deferred, for: "heartRate")
+        let health = FakeHealthData(externalSleep: [], externalHeartRate: [])
+        let api = FakeWhoopAPI(sleeps: [], heartRatePoints: [HeartRatePoint(timestamp: now.addingTimeInterval(-60), bpm: 60, sourceStepSeconds: 6)])
+        let engine = SyncEngine(api: api, healthKit: health, repository: repository)
+        _ = try await engine.synchronize(recoveryMode: .recent, resumeDeferred: false, origin: .automation)
+        try expect(try repository.deferredWindow(for: "sleep") != nil, "A run that did not merge deferred windows must keep the sleep deferral.")
+        try expect(try repository.deferredWindow(for: "heartRate") != nil, "A run that did not merge deferred windows must keep the HR deferral.")
+        _ = try await engine.synchronize()
+        try expect(try repository.deferredWindow(for: "sleep") == nil, "A manual run that merged the sleep deferral must clear it.")
+        try expect(try repository.deferredWindow(for: "heartRate") == nil, "A manual run that merged the HR deferral must clear it.")
+    }
+
+    @MainActor
+    private static func testDeferredWindowBeforeBoundaryIsNotMerged() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("gate-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let now = Date()
+        let deferred = TimeRange(start: now.addingTimeInterval(-30 * 86400), end: now.addingTimeInterval(-20 * 86400))
+        let repository = SyncRepository(fileURL: url)
+        try repository.setDeferredWindow(deferred, for: "sleep")
+        try repository.setDeferredWindow(deferred, for: "heartRate")
+        let health = FakeHealthData(externalSleep: [], externalHeartRate: [])
+        health.sleepBoundary = now.addingTimeInterval(-86400); health.heartRateBoundary = now.addingTimeInterval(-86400)
+        let api = FakeWhoopAPI(sleeps: [], heartRatePoints: [HeartRatePoint(timestamp: now.addingTimeInterval(-60), bpm: 60, sourceStepSeconds: 6)])
+        let summary = try await SyncEngine(api: api, healthKit: health, repository: repository).synchronize()
+        expect(summary.sleepQueryWindowStart.map { $0 > deferred.end } == true, "A sleep deferral before the boundary must not widen the query.")
+        expect(summary.heartRateWindowStart.map { $0 > deferred.end } == true, "An HR deferral before the boundary must not widen the window.")
+        try expect(try repository.deferredWindow(for: "sleep") != nil, "A sleep deferral before the boundary must stay pending.")
+        try expect(try repository.deferredWindow(for: "heartRate") != nil, "An HR deferral before the boundary must stay pending.")
+    }
+
+    @MainActor
     private static func testCancelledSleepDoesNotAdvanceOrContinueHeartRate() async throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("cancel-\(UUID()).json")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -745,6 +831,7 @@ private final class FakeWhoopAPI: WhoopAPIProviding {
     var heartRateErrorAfterRequestCount: Int?
     var unsupportedHeartRateSteps: Set<Int> = []
     var requestedHeartRateSteps: [Int] = []
+    var requestedHeartRateRanges: [TimeRange] = []
     var filterHeartRateByRequestWindow = true
     var heartRateError: Error?
     var userID = "fake-user"
@@ -775,6 +862,7 @@ private final class FakeWhoopAPI: WhoopAPIProviding {
 
     func fetchHeartRate(userID: String, start: Date, end: Date, stepSeconds: Int) async throws -> [HeartRatePoint] {
         requestedHeartRateSteps.append(stepSeconds)
+        requestedHeartRateRanges.append(TimeRange(start: start, end: end))
         if let limit = heartRateErrorAfterRequestCount, requestedHeartRateSteps.count > limit {
             throw WhoopAPIError.http(status: 503, path: "/synthetic-heart-rate", message: "injected revision failure")
         }
@@ -803,7 +891,11 @@ private final class FakeHealthData: HealthDataProviding {
     var sleepBoundary: Date?
     var heartRateBoundary: Date?
     var cancelSleepSave = false
-    func authorizedBoundary(for type: String) async throws -> Date? { type == "sleep" ? sleepBoundary : heartRateBoundary }
+    var sleepBoundarySequence: [Date?] = []
+    func authorizedBoundary(for type: String) async throws -> Date? {
+        if type == "sleep" && !sleepBoundarySequence.isEmpty { return sleepBoundarySequence.removeFirst() }
+        return type == "sleep" ? sleepBoundary : heartRateBoundary
+    }
     var throwOnSleepSave = false
     var throwOnHeartRateSave = false
     var savedSleepFragmentCount = 0
