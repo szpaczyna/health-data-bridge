@@ -14,7 +14,7 @@ A free, open-source iOS app that fills gaps in Apple Health using data from your
 - Optionally imports recovery **HRV in milliseconds (RMSSD)** on supporting iOS 27 devices. This is not WHOOP's recovery percentage and is not SDNN.
 - Configures compatible data together, starts new users with seven days and offers one optional historical-period import with durable resume and cancellation.
 - Preserves other sources' samples; cleanup is restricted to records identified as belonging to this app.
-- Includes English and Spanish interfaces, local diagnostics and tests.
+- Includes English, Spanish and Polish interfaces, local diagnostics and tests.
 
 ## Status and important limitations
 

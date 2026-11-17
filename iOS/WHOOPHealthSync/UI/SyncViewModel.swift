@@ -624,7 +624,6 @@ final class SyncViewModel: ObservableObject {
         requiresAccountBinding = repository?.requiresManualAccountBinding ?? false
         diagnostics = repository?.diagnostics() ?? .empty
         recoveryState = (try? repository?.recoveryState()) ?? RecoverySyncState()
-        if repository?.loadError != nil, errors.isEmpty { errors.append("Local sync data unavailable; synchronization is blocked.") }
     }
 
     private func appendEvent(_ event: String) {
