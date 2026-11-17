@@ -289,6 +289,30 @@ struct RepositorySmokeCheck {
         do { _ = try corrupt.checkpoints(); fatalError("Corrupt checkpoints must throw") } catch {}
         do { try corrupt.setSleepCheckpoint(date(999)); fatalError("Corrupt store must reject writes") } catch {}
         try expect(try Data(contentsOf: corruptURL) == corruptBytes, "Corrupt original must be preserved.")
+        do { try corrupt.ensureUsable(); fatalError("A corrupt store must stay blocked on retry") } catch {}
+
+        // A store that was unreadable at launch (device locked) becomes usable once readable again.
+        if getuid() == 0 {
+            print("Skipping locked-store reload check: running as root ignores file permissions.")
+        } else {
+            let lockedURL = directory.appendingPathComponent("locked.json")
+            try SyncRepository(fileURL: lockedURL).setSleepCheckpoint(date(321))
+            let lockedOriginal = try SyncRepository(fileURL: lockedURL).checkpoints()
+            let lockedBytes = try Data(contentsOf: lockedURL)
+            try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: lockedURL.path)
+            let locked = SyncRepository(fileURL: lockedURL)
+            do { try locked.ensureUsable(); fatalError("An unreadable store must block") } catch {}
+            do { try locked.setSleepCheckpoint(date(999)); fatalError("An unreadable store must reject writes") } catch {}
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: lockedURL.path)
+            try expect(try Data(contentsOf: lockedURL) == lockedBytes, "A locked store is never overwritten.")
+            do { try locked.setHeartRateCheckpoint(date(888), resolution: 60); fatalError("save must not reload over a pending write") } catch {}
+            try locked.ensureUsable()
+            try expect(try locked.checkpoints() == lockedOriginal, "Reload after unlock restores the stored checkpoints.")
+            try locked.setHeartRateCheckpoint(date(654), resolution: 60)
+            let lockedReload = try SyncRepository(fileURL: lockedURL).checkpoints()
+            expect(lockedReload.lastSleepQueryEnd == date(321) && lockedReload.lastHeartRateEnd == date(654),
+                   "Writes after reload keep old data and add new progress.")
+        }
 
         let failureURL = directory.appendingPathComponent("failure.json")
         let originalRepo = SyncRepository(fileURL: failureURL)

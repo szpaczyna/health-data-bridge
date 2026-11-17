@@ -21,7 +21,8 @@ struct SyncViewModelSmokeCheck {
         try await testStoredRunsPopulateSummary()
         try await testOlderStoredRunKeepsInAppSummary()
         try await testAutomationNotificationReloadsSummary()
-        print("SyncViewModel smoke check passed (16 scenarios: unified setup, corrupt-store gate, partial authorization, atomic rollback, duplicate-save guard, continuity, history, stored-run summary and automation reload)")
+        try await testUnlockedStoreClearsUnavailableBanner()
+        print("SyncViewModel smoke check passed (17 scenarios: unified setup, corrupt-store gate, unlock reload, partial authorization, atomic rollback, duplicate-save guard, continuity, history, stored-run summary and automation reload)")
     }
 
     @MainActor
@@ -355,6 +356,21 @@ struct SyncViewModelSmokeCheck {
         expect(runner.syncs == 0 && runner.authorizations.isEmpty, "Corruption blocks authorization and runtime execution.")
         let after = try Data(contentsOf: url)
         expect(after == bytes, "Corrupt file is preserved exactly.")
+    }
+
+    @MainActor private static func testUnlockedStoreClearsUnavailableBanner() async throws {
+        guard getuid() != 0 else { return print("Skipping unlock banner check: root ignores file permissions.") }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("locked-banner-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try SyncRepository(fileURL: url).completeSyncSetup()
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
+        let vm = SyncViewModel(healthKitService: FakeHealthKitAuthorizer(), repository: SyncRepository(fileURL: url),
+            syncEngine: UnifiedSyncRunner(), initialAuthStatus: .authenticated(email: "fixture@example.invalid"))
+        vm.configure()
+        expect(!vm.repositoryAvailable && !vm.errors.isEmpty, "A locked store shows the unavailable banner.")
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        vm.reloadFromStore()
+        expect(vm.repositoryAvailable && vm.errors.isEmpty, "The unavailable banner clears once the store reloads.")
     }
 
     @MainActor private static func testPartialAuthorizationAndSelectionInvalidation() async throws {
