@@ -322,8 +322,24 @@ struct RepositorySmokeCheck {
         do { try failing.setSleepCheckpoint(date(999)); fatalError("Injected write should fail") } catch {}
         try expect(try failing.checkpoints().lastSleepQueryEnd == date(123), "Failed write must roll back memory.")
         try expect(try Data(contentsOf: failureURL) == originalBytes, "Failed write must preserve disk.")
-        do { try failing.appendEvent(runID: nil, level: "info", category: "failed", message: "must not publish"); fatalError("Injected event should fail") } catch {}
-        expect(failing.diagnostics().recentEvents.isEmpty, "Failed event write must not leak uncommitted memory.")
+        try failing.appendEvent(runID: nil, level: "info", category: "failed", message: "must not publish")
+        do { try failing.setSleepCheckpoint(date(999)); fatalError("Injected write should fail") } catch {}
+        expect(failing.diagnostics().recentEvents.isEmpty, "Failed save must roll back unsaved events.")
+
+        let batchURL = directory.appendingPathComponent("batch.json")
+        var writeCount = 0
+        let batched = SyncRepository(fileURL: batchURL, writeData: { data, url in
+            writeCount += 1
+            try data.write(to: url, options: [.atomic])
+        })
+        for index in 0..<100 {
+            try batched.appendEvent(runID: nil, level: "info", category: "batch", message: "event \(index)")
+        }
+        expect(writeCount == 0, "Appending events must not write the store.")
+        try batched.setSleepCheckpoint(date(321))
+        expect(writeCount == 1, "The next save must persist pending events in one write.")
+        let batchedReloaded = SyncRepository(fileURL: batchURL)
+        expect(batchedReloaded.diagnostics().recentEvents.filter { $0.category == "batch" }.count == 100, "Pending events must persist with the next save.")
 
         var legacyObject = try JSONSerialization.jsonObject(with: originalBytes) as! [String: Any]
         legacyObject.removeValue(forKey: "schemaVersion"); legacyObject.removeValue(forKey: "recovery")

@@ -280,8 +280,8 @@ final class SyncEngine {
             }
             summary.elapsedSeconds = Date().timeIntervalSince(startedAt)
             let status: SyncRunStatus = summary.hasIncompleteResults ? .partial : .success
-            try repository.finishRun(run, summary: summary, status: status)
             recordEvent(runID: run, level: status == .success ? "info" : "warning", category: "sync", message: String(localized: "Sync finished: \(status.rawValue). Sleeps downloaded=\(summary.sleepsDownloaded), stages written=\(summary.stagesWritten), HR downloaded=\(summary.heartRateDownloaded), HR written=\(summary.heartRateWritten), errors=\(summary.errors.count)."))
+            try repository.finishRun(run, summary: summary, status: status)
             AppLog.sync.info("\(origin.logLabel, privacy: .public) sync finished with status \(status.rawValue, privacy: .public).")
             lastSummary = summary
             return summary
@@ -301,8 +301,8 @@ final class SyncEngine {
             // Authentication/account failures are recorded without reading unvalidated checkpoints.
             let failedRun = activeRun ?? (try? repository.createRejectedRun(startedAt: startedAt))
             if let run = failedRun {
-                try? repository.finishRun(run, summary: summary, status: error is CancellationError ? .cancelled : .failed)
                 recordEvent(runID: run, level: "error", category: "sync", message: String(localized: "Sync failed: \(Self.message(error))"))
+                try? repository.finishRun(run, summary: summary, status: error is CancellationError ? .cancelled : .failed)
             }
             AppLog.sync.error("\(origin.logLabel, privacy: .public) sync failed: \(Self.message(error), privacy: .public)")
             throw error
