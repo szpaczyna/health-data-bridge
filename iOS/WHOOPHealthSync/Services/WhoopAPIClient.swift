@@ -91,29 +91,11 @@ actor WhoopAPIClient {
     func probeRecoveryValues() async throws -> String {
         let user = try await fetchCurrentUser()
         let end = Date()
-        // The user declared December 2025 as their approximate start month.
-        // This is a diagnostic window, not a proven boundary for historical import.
-        guard let initialStart = WhoopDateCodec.date(from: "2025-12-01T00:00:00Z"),
-              let initialEnd = WhoopDateCodec.date(from: "2026-01-01T00:00:00Z") else { throw RecoverySyncError.invalidTemporalAssociation }
-        var sections = [AppLocalization.string("Read-only diagnostic. It does not write to Health or change sync progress. The private hrv_rmssd field is in seconds: the ×1000 conversion to ms is backed by the seven WHOOP references provided. Compare by sleep end date: 2026-09-13=46 ms, 2026-09-14=59 ms, 2026-09-15=48 ms. Declared approximate start of use: December 2025; nothing before that month is queried.")]
-        let windows: [(String, Date, Date, Int)] = [
-            (AppLocalization.string("Last seven days"), end.addingTimeInterval(-7 * 86400), end, 20),
-            (AppLocalization.string("Declared approximate start: December 2025 (monthly probe; does not prove completeness)"), initialStart, initialEnd, 10)
-        ]
-        for (index, window) in windows.enumerated() {
-            try Task.checkCancellation()
-            do {
-                let json = try await getJSON(path: "/core-details-bff/v0/cycles/details", query: [
-                    "id": user.id, "startTime": Self.isoString(window.1), "endTime": Self.isoString(window.2), "limit": "50"
-                ])
-                sections.append(window.0 + "\n" + WhoopRecoveryValueProbe.report(of: json, expectedUserID: user.id, maxRows: window.3))
-            } catch {
-                try Task.checkCancellation()
-                if index == 0 { throw error }
-                sections.append(window.0 + "\n" + AppLocalization.string("Query not completed; this does not mean the history is empty."))
-            }
-        }
-        return sections.joined(separator: "\n\n")
+        let json = try await getJSON(path: "/core-details-bff/v0/cycles/details", query: [
+            "id": user.id, "startTime": Self.isoString(end.addingTimeInterval(-7 * 86400)), "endTime": Self.isoString(end), "limit": "50"
+        ])
+        let intro = AppLocalization.string("Read-only diagnostic. It does not write to Health or change sync progress. The private hrv_rmssd field is in seconds and is shown in ms (×1000).")
+        return intro + "\n\n" + AppLocalization.string("Last seven days") + "\n" + WhoopRecoveryValueProbe.report(of: json, expectedUserID: user.id, maxRows: 20)
     }
 
     func fetchCurrentUser() async throws -> WhoopUser {
