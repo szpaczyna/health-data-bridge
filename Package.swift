@@ -12,20 +12,12 @@ let package = Package(
         .library(
             name: "WHOOPHealthSyncCore",
             targets: ["WHOOPHealthSyncCore"]
-        ),
-        .executable(
-            name: "WHOOPHealthSyncCoreChecks",
-            targets: ["WHOOPHealthSyncCoreChecks"]
         )
     ],
     targets: [
         .target(
             name: "WHOOPHealthSyncCore"
         ),
-        .testTarget(name: "WHOOPHealthSyncCoreTests", dependencies: ["WHOOPHealthSyncCore"]),
-        .executableTarget(
-            name: "WHOOPHealthSyncCoreChecks",
-            dependencies: ["WHOOPHealthSyncCore"]
-        )
+        .testTarget(name: "WHOOPHealthSyncCoreTests", dependencies: ["WHOOPHealthSyncCore"])
     ]
 )
