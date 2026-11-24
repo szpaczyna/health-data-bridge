@@ -12,7 +12,6 @@
 		5D1000000000000000000103 /* SyncViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000203 /* SyncViewModel.swift */; };
 		5D1000000000000000000104 /* SyncDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000204 /* SyncDashboardView.swift */; };
 		5D1000000000000000000105 /* AuthenticationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000205 /* AuthenticationSheet.swift */; };
-		5D1000000000000000000129 /* WhoopLoginWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000233 /* WhoopLoginWebView.swift */; };
 		5D1000000000000000000106 /* SyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000206 /* SyncModels.swift */; };
 		5D1000000000000000000107 /* SyncRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000207 /* SyncRepository.swift */; };
 		5D1000000000000000000108 /* MetadataKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000208 /* MetadataKeys.swift */; };
@@ -26,7 +25,6 @@
 		5D1000000000000000000118 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000218 /* PrivacyInfo.xcprivacy */; };
 		5D1000000000000000000119 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000219 /* Assets.xcassets */; };
 		5D1000000000000000000120 /* LiveSyncRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000220 /* LiveSyncRuntime.swift */; };
-		5D1000000000000000000130 /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000234 /* SyncCoordinator.swift */; };
 		5D1000000000000000000121 /* SynchronizeWhoopIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000221 /* SynchronizeWhoopIntent.swift */; };
 		5D1000000000000000000122 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000222 /* AppRootView.swift */; };
 		5D1000000000000000000123 /* OptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000223 /* OptionsView.swift */; };
@@ -35,6 +33,8 @@
 		5D1000000000000000000126 /* HealthKitRecoveryAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000228 /* HealthKitRecoveryAdapter.swift */; };
 		5D1000000000000000000127 /* Appearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000229 /* Appearance.swift */; };
 		5D1000000000000000000128 /* Previews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000232 /* Previews.swift */; };
+		5D1000000000000000000129 /* WhoopLoginWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000233 /* WhoopLoginWebView.swift */; };
+		5D1000000000000000000130 /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1000000000000000000234 /* SyncCoordinator.swift */; };
 		5D2000000000000000000103 /* RecoveryHealthKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D2000000000000000000102 /* RecoveryHealthKitTests.swift */; };
 		5D2000000000000000000203 /* RecoveryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D2000000000000000000202 /* RecoveryUITests.swift */; };
 /* End PBXBuildFile section */
@@ -62,7 +62,6 @@
 		5D1000000000000000000203 /* SyncViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncViewModel.swift; sourceTree = "<group>"; };
 		5D1000000000000000000204 /* SyncDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDashboardView.swift; sourceTree = "<group>"; };
 		5D1000000000000000000205 /* AuthenticationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationSheet.swift; sourceTree = "<group>"; };
-		5D1000000000000000000233 /* WhoopLoginWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopLoginWebView.swift; sourceTree = "<group>"; };
 		5D1000000000000000000206 /* SyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModels.swift; sourceTree = "<group>"; };
 		5D1000000000000000000207 /* SyncRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRepository.swift; sourceTree = "<group>"; };
 		5D1000000000000000000208 /* MetadataKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataKeys.swift; sourceTree = "<group>"; };
@@ -77,7 +76,6 @@
 		5D1000000000000000000218 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		5D1000000000000000000219 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5D1000000000000000000220 /* LiveSyncRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSyncRuntime.swift; sourceTree = "<group>"; };
-		5D1000000000000000000234 /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 		5D1000000000000000000221 /* SynchronizeWhoopIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SynchronizeWhoopIntent.swift; sourceTree = "<group>"; };
 		5D1000000000000000000222 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
 		5D1000000000000000000223 /* OptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptionsView.swift; sourceTree = "<group>"; };
@@ -87,9 +85,11 @@
 		5D1000000000000000000227 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = es.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		5D1000000000000000000228 /* HealthKitRecoveryAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitRecoveryAdapter.swift; sourceTree = "<group>"; };
 		5D1000000000000000000229 /* Appearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Appearance.swift; sourceTree = "<group>"; };
-		5D1000000000000000000232 /* Previews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Previews.swift; sourceTree = "<group>"; };
 		5D1000000000000000000230 /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = pl.lproj/Localizable.strings; sourceTree = "<group>"; };
 		5D1000000000000000000231 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = pl.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		5D1000000000000000000232 /* Previews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Previews.swift; sourceTree = "<group>"; };
+		5D1000000000000000000233 /* WhoopLoginWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopLoginWebView.swift; sourceTree = "<group>"; };
+		5D1000000000000000000234 /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 		5D1000000000000000000301 /* WHOOPHealthSync.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WHOOPHealthSync.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5D2000000000000000000102 /* RecoveryHealthKitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryHealthKitTests.swift; sourceTree = "<group>"; };
 		5D2000000000000000000104 /* WHOOPHealthSyncTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = WHOOPHealthSyncTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -229,7 +229,6 @@
 		};
 /* End PBXGroup section */
 
-
 /* Begin PBXNativeTarget section */
 		5D1000000000000000000601 /* WHOOPHealthSync */ = {
 			isa = PBXNativeTarget;
@@ -299,6 +298,9 @@
 				TargetAttributes = {
 					5D1000000000000000000601 = {
 						CreatedOnToolsVersion = 16.0;
+					};
+					5D2000000000000000000201 = {
+						TestTargetID = 5D1000000000000000000601;
 					};
 				};
 			};
@@ -563,12 +565,16 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHOOPHealthSync/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.3.0;
+				INFOPLIST_KEY_CFBundleDisplayName = WHOOPHealthSync;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 0.3.1;
 				PRODUCT_BUNDLE_IDENTIFIER = org.shpaq.WHOOPHealthSync;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WHOOP_IOS27_SDK";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -585,12 +591,16 @@
 				CURRENT_PROJECT_VERSION = 7;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WHOOPHealthSync/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.3.0;
+				INFOPLIST_KEY_CFBundleDisplayName = WHOOPHealthSync;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 0.3.1;
 				PRODUCT_BUNDLE_IDENTIFIER = org.shpaq.WHOOPHealthSync;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WHOOP_IOS27_SDK";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -604,7 +614,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.shpaq.WHOOPHealthSyncTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -620,7 +630,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.shpaq.WHOOPHealthSyncTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -635,10 +645,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.shpaq.WHOOPHealthSyncUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = WHOOP_IOS27_SDK;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -650,10 +664,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.shpaq.WHOOPHealthSyncUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = WHOOP_IOS27_SDK;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
