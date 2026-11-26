@@ -1,6 +1,6 @@
 # Building and installation identity
 
-Use Xcode 27 with the iOS 27 SDK for this branch. The deployment target is iOS 17; RMSSD depends on native iOS 27 support. A build/test on an older runtime does not validate RMSSD functionality.
+Use Xcode 27 with the iOS 27 SDK for this branch. The app and test targets set the deployment target to iOS 27.0; RMSSD depends on native iOS 27 support. A build/test on an older runtime does not validate RMSSD functionality.
 
 Open `iOS/WHOOPHealthSync.xcodeproj` and select its shared scheme. Select your own team in Signing & Capabilities, or pass `DEVELOPMENT_TEAM=YOUR_TEAM_ID` to `xcodebuild`. The checked-in team identifies the existing maintainer installation; it is not a credential and does not grant signing access.
 
