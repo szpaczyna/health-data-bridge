@@ -29,7 +29,7 @@ The fixture path is simulator-gated, requires the isolated name and is absent fr
 
 Exercise full-read, limited-history and denied-read configurations separately. Authorization prompts and runtime availability matter; record skipped tests rather than reporting them as successes.
 
-## 0.4.0 (1) local results
+## 0.4.0 (8) local results
 
 Run on November 26, 2026 at commit `a90995d` with Xcode 27.2 and Swift 6.4.2. Details,
 the findings-to-test table and pending physical checks are in

@@ -1,8 +1,8 @@
-# HealthDataBridge 0.4.0 (1): validation report
+# HealthDataBridge 0.4.0 (8): validation report
 
 Date: November 26, 2026. Base commit: `a90995d5bf5d1a30ca1befb9bc4dbcc3c2299d05`
 (`main` after PRs #26 to #32), with the Xcode project set to `MARKETING_VERSION`
-0.4.0 and `CURRENT_PROJECT_VERSION` 1. Previous release: 0.3.1 (7), tag `0.3.1` at
+0.4.0 and `CURRENT_PROJECT_VERSION` 8. Previous release: 0.3.1 (7), tag `0.3.1` at
 `48e0b2e`.
 
 Status: release candidate built from source. Automated checks passed; physical
@@ -11,8 +11,8 @@ was contacted, this candidate was not installed on a physical iPhone, and no IPA
 TestFlight or App Store build was published.
 
 Version drift: before this release the Xcode project declared 0.3.1 (7), while
-README.md and VALIDATION_0.3.md described the candidate as 0.3.0 (7). Build 1 of
-0.4.0 restarts the build number; it is lower than the previous build 7.
+README.md and VALIDATION_0.3.md described the candidate as 0.3.0 (7). 0.4.0 continues
+the build sequence with build 8.
 
 ## Implementation reviewed
 
@@ -58,7 +58,7 @@ its smoke checks through one function.
 ## Evidence executed
 
 Environment: macOS 27.3, Xcode 27.2 (27B52), Apple Swift 6.4.2, macOS 27.2 host SDK.
-All runs used the worktree at the base commit with the 0.4.0 (1) project change.
+All runs used the worktree at the base commit with the 0.4.0 (8) project change.
 Fixtures are synthetic.
 
 | Evidence | Result | Limits |
