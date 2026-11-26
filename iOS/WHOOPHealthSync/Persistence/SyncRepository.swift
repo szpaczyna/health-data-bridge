@@ -331,8 +331,9 @@ final class SyncRepository {
             .filter { key, record in
                 key != session.whoopSleepID
                     && record.fingerprint == fingerprint
-                    && record.start == session.start
-                    && record.end == session.end
+                    // The store encodes dates as whole-second ISO 8601, so reloaded records lose fractions.
+                    && abs(record.start.timeIntervalSince(session.start)) < 1
+                    && abs(record.end.timeIntervalSince(session.end)) < 1
                     && record.isNap == session.isNap
             }
             .max { lhs, rhs in

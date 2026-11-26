@@ -67,7 +67,7 @@ struct WhoopLoginWebView: UIViewRepresentable {
         private func handle(_ cookies: [HTTPCookie]) {
             guard !didDeliver else { return }
             var values: [String: String] = [:]
-            for cookie in cookies where cookie.domain.hasSuffix("whoop.com") && !cookie.value.isEmpty {
+            for cookie in cookies where WhoopWebSession.isWhoopCookieDomain(cookie.domain) && !cookie.value.isEmpty {
                 // WHOOP first sets a short user cookie without the email and replaces it after the dashboard loads.
                 if cookie.name == WhoopWebSession.userCookie, !WhoopWebSession.containsEmail(userCookie: cookie.value) {
                     continue

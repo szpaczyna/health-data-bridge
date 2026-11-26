@@ -126,6 +126,16 @@ struct RepositorySmokeCheck {
         expect(migrationRepository.sleepRecord(for: "deep-dive-sleep:2026-07-12") == nil, "A later fallback import should still not create a duplicate synthetic record.")
         expect(migrationRepository.diagnostics().recordedSleepCount == 1, "Real-to-fallback repeat should stay consolidated.")
 
+        let fractionalURL = migrationDirectory.appendingPathComponent("fractional-sync-store.json", isDirectory: false)
+        let fractionalFallback = try sleepSession(id: "deep-dive-sleep:2026-07-13", start: date(2_000.774))
+        let fractionalReal = try sleepSession(id: "real-fractional-id", start: date(2_000.774))
+        let fractionalFingerprint = SleepFingerprint.make(for: fractionalFallback)
+        try SyncRepository(fileURL: fractionalURL).upsertSleepRecord(session: fractionalFallback, fingerprint: fractionalFingerprint, result: "fallback")
+        let fractionalReloaded = SyncRepository(fileURL: fractionalURL)
+        try fractionalReloaded.upsertSleepRecord(session: fractionalReal, fingerprint: fractionalFingerprint, result: "real")
+        expect(fractionalReloaded.sleepRecord(for: "deep-dive-sleep:2026-07-13") == nil, "A reloaded fallback record with sub-second times should merge into the real activity ID.")
+        expect(fractionalReloaded.diagnostics().recordedSleepCount == 1, "Sub-second reload consolidation should keep one local sleep record.")
+
         let legacyDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("WHOOPHealthSyncRepositoryLegacy-\(UUID().uuidString)", isDirectory: true)
         let legacyURL = legacyDirectory.appendingPathComponent("sync-store.json", isDirectory: false)

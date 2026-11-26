@@ -36,7 +36,7 @@ public enum WhoopRecoveryValueProbe {
         var lines = ["Records received: \(records.count). HRV_API in seconds; HRV_ms = HRV_API × 1000, unrounded."]
         for key in ["next_token", "nextToken", "next_cursor", "nextCursor", "next", "has_more", "hasMore", "total_count", "total"] where root[key] != nil {
             let value = root[key]!
-            let status = value is NSNull ? "null" : (flag(value).map { $0 ? "true" : "false" } ?? "present (value hidden)")
+            let status = value is NSNull ? "null" : (WhoopPrivateRecoveryAdapter.flag(value).map { $0 ? "true" : "false" } ?? "present (value hidden)")
             lines.append("Pagination \(key): \(status)")
         }
         if !root.keys.contains(where: { ["next_token", "nextToken", "next_cursor", "nextCursor", "next", "has_more", "hasMore", "total_count", "total"].contains($0) }) {
@@ -57,7 +57,7 @@ public enum WhoopRecoveryValueProbe {
             }
             let sleep = sleeps.count == 1 ? sleeps[0] : [:]
             let range = WhoopPayloadAdapters.timeRange(from: sleep["during"])
-            let zone = timeZone(sleep["timezone_offset"] ?? cycle["timezone_offset"])
+            let zone = WhoopPrivateRecoveryAdapter.sourceZone(record: record, sleep: sleep, cycle: cycle, sleepID: activity ?? "")
             let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.dateFormat = "yyyy-MM-dd HH:mm:ss Z"; formatter.timeZone = zone ?? TimeZone(secondsFromGMT: 0)!
             let end = range.map { formatter.string(from: $0.end) } ?? "unrecognized"
@@ -65,8 +65,8 @@ public enum WhoopRecoveryValueProbe {
             let value = number(recovery["hrv_rmssd"])
             let valueText = value.map { String($0) } ?? "invalid/null (booleans rejected)"
             let milliseconds = value.map { $0 * 1000 }.flatMap { $0.isFinite ? String($0) : nil } ?? "invalid/null"
-            let nap = flag(sleep["is_nap"]).map { $0 ? "yes" : "no" } ?? "unknown"
-            let calibration = flag(recovery["calibrating"]).map { $0 ? "yes" : "no" } ?? "unknown"
+            let nap = WhoopPrivateRecoveryAdapter.flag(sleep["is_nap"]).map { $0 ? "yes" : "no" } ?? "unknown"
+            let calibration = WhoopPrivateRecoveryAdapter.flag(recovery["calibrating"]).map { $0 ? "yes" : "no" } ?? "unknown"
             let state = enumLabel(recovery["state"])
             let update = WhoopDateCodec.date(from: recovery["updated_at"]).map { formatter.string(from: $0) } ?? "unrecognized"
             lines.append("Row \(index + 1): account=\(userMatches ? "matches" : "NOT VERIFIED"); cycle_ID=\(cycleIDValid ? "valid" : "invalid"); sleep_link=\(sleeps.count == 1 ? "unique" : "missing/ambiguous"); zone=\(zone == nil ? "UNRECOGNIZED (UTC dates)" : "recognized offset")")
@@ -84,20 +84,8 @@ public enum WhoopRecoveryValueProbe {
               n.doubleValue > 0, n.doubleValue.rounded(.towardZero) == n.doubleValue else { return nil }
         return n.stringValue
     }
-    private static func flag(_ raw: Any?) -> Bool? {
-        guard let n = raw as? NSNumber else { return nil }
-        if CFGetTypeID(n) == CFBooleanGetTypeID() { return n.boolValue }
-        if n.doubleValue == 0 { return false }; if n.doubleValue == 1 { return true }; return nil
-    }
     private static func enumLabel(_ raw: Any?) -> String {
         guard let s = raw as? String, s.range(of: "^[A-Za-z_]{1,32}$", options: .regularExpression) != nil else { return "unrecognized (value hidden)" }
         return s
-    }
-    private static func timeZone(_ raw: Any?) -> TimeZone? {
-        guard let s = raw as? String, s.range(of: "^[+-][0-9]{2}:?[0-9]{2}$", options: .regularExpression) != nil else { return nil }
-        let digits = String(s.dropFirst()).replacingOccurrences(of: ":", with: "")
-        guard let hours = Int(digits.prefix(2)), let minutes = Int(digits.suffix(2)), hours <= 14, minutes < 60,
-              hours < 14 || minutes == 0 else { return nil }
-        return TimeZone(secondsFromGMT: (s.first == "-" ? -1 : 1) * (hours * 3600 + minutes * 60))
     }
 }

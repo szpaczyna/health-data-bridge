@@ -1,38 +1,6 @@
 import Foundation
 import CoreFoundation
 
-/// Reference adapter for WHOOP's documented V2 object, NOT proof that the private session accepts it.
-/// No endpoint is attached to this decoder. G2 must supply a validated transport and sleep association.
-public enum WhoopRecoveryReferenceAdapter {
-    private struct Object: Decodable {
-        let cycle_id: Int64
-        let sleep_id: String
-        let user_id: Int64
-        let updated_at: String
-        let score_state: RecoveryScoreState
-        let score: Score?
-        struct Score: Decodable { let user_calibrating: Bool; let hrv_rmssd_milli: Double? }
-    }
-    public static func decode(_ data: Data, expectedUserID: String, sleep: SleepSession,
-                              sourceTimeZoneID: String) throws -> WhoopRecovery {
-        let object: Object
-        do { object = try JSONDecoder().decode(Object.self, from: data) }
-        catch { throw RecoverySyncError.invalidRecord }
-        guard String(object.user_id) == expectedUserID else { throw RecoverySyncError.accountMismatch }
-        guard !sleep.isNap, object.sleep_id == sleep.whoopSleepID,
-              let updated = WhoopDateCodec.date(from: object.updated_at) else {
-            throw RecoverySyncError.invalidTemporalAssociation
-        }
-        let item = WhoopRecovery(accountKey: WhoopRecovery.pseudonymousAccountKey(userID: expectedUserID),
-            cycleID: String(object.cycle_id), sleepID: object.sleep_id,
-            sleepRange: TimeRange(start: sleep.start, end: sleep.end), sourceTimeZoneID: sourceTimeZoneID,
-            milliseconds: object.score?.hrv_rmssd_milli, scoreState: object.score_state, updatedAt: updated,
-            userCalibrating: object.score?.user_calibrating ?? false, adapterVersion: "whoop-v2-reference-v1")
-        _ = try item.coverageWindow()
-        return item
-    }
-}
-
 /// Private cycles contract observed using the existing session on 2026-09-15.
 /// Seconds-to-ms conversion is supported by seven UI/API comparisons. Only the observed
 /// complete state is normalized; unknown states fail rather than adopting OAuth V2 semantics.
@@ -72,12 +40,12 @@ public enum WhoopPrivateRecoveryAdapter {
               let id = Int64(n.stringValue), id > 0 else { return nil }
         return String(id)
     }
-    private static func flag(_ raw: Any?) -> Bool? {
+    static func flag(_ raw: Any?) -> Bool? {
         guard let n = raw as? NSNumber else { return nil }
         if CFGetTypeID(n) == CFBooleanGetTypeID() { return n.boolValue }
         if n.doubleValue == 0 { return false }; if n.doubleValue == 1 { return true }; return nil
     }
-    private static func sourceZone(record: [String: Any], sleep: [String: Any], cycle: [String: Any], sleepID: String) -> TimeZone? {
+    static func sourceZone(record: [String: Any], sleep: [String: Any], cycle: [String: Any], sleepID: String) -> TimeZone? {
         let activities = record["v2_activities"] as? [[String: Any]] ?? []
         let linked = activities.filter { activity in
             ["id", "source_id", "activity_v1_id"].contains { activity[$0] as? String == sleepID }

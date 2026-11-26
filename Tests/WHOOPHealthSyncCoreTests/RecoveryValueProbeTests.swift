@@ -2,15 +2,18 @@ import XCTest
 @testable import WHOOPHealthSyncCore
 
 final class RecoveryValueProbeTests: XCTestCase {
-    private func payload(value: Any = 48.123456, activity: String = "private-sleep-id", duplicate: Bool = false) -> [String: Any] {
+    private func payload(value: Any = 48.123456, activity: String = "private-sleep-id", duplicate: Bool = false,
+                         offset: String = "+02:00", activityZone: String? = nil) -> [String: Any] {
         let sleep: [String: Any] = ["activity_id": activity, "is_nap": false,
-            "during": "[\"2026-09-14T22:30:00Z\",\"2026-09-15T06:00:00Z\")", "timezone_offset": "+02:00"]
-        return ["next_token": "secret-pagination-token", "email": "private@example.invalid", "records": [[
+            "during": "[\"2026-09-14T22:30:00Z\",\"2026-09-15T06:00:00Z\")", "timezone_offset": offset]
+        var record: [String: Any] = [
             "cycle": ["id": 987654321, "user_id": 123456789],
             "recovery": ["user_id": 123456789, "activity_id": "private-sleep-id", "hrv_rmssd": value,
                 "state": "complete", "calibrating": false, "updated_at": "2026-09-15T07:00:00Z"],
             "sleeps": duplicate ? [sleep, sleep] : [sleep]
-        ]]]
+        ]
+        if let activityZone { record["v2_activities"] = [["id": "private-sleep-id", "timezone": activityZone]] }
+        return ["next_token": "secret-pagination-token", "email": "private@example.invalid", "records": [record]]
     }
     func testValuePrecisionAndSleepOffsetWithoutIdentifiersOrTokens() {
         let output = WhoopRecoveryValueProbe.report(of: payload(), expectedUserID: "123456789")
@@ -21,6 +24,11 @@ final class RecoveryValueProbeTests: XCTestCase {
             XCTAssertFalse(output.contains(secret))
         }
         XCTAssertTrue(output.contains("HRV_API in seconds"))
+    }
+    func testActivityTimeZoneMatchesImporterOverSleepOffset() {
+        let output = WhoopRecoveryValueProbe.report(of: payload(offset: "+00:00", activityZone: "Europe/Madrid"), expectedUserID: "123456789")
+        XCTAssertTrue(output.contains("end=2026-09-15 08:00:00 +0200"))
+        XCTAssertFalse(output.contains("private-sleep-id"))
     }
     func testJSONBooleanIsNotAnHRVMeasurement() throws {
         let json = try JSONSerialization.jsonObject(with: JSONSerialization.data(withJSONObject: payload(value: true)))

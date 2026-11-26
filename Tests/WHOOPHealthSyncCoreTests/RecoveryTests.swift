@@ -468,33 +468,6 @@ final class RecoveryPipelineTests: XCTestCase {
 }
 
 final class RecoveryContractTests: XCTestCase {
-    private func sleep(nap: Bool = false) -> SleepSession {
-        SleepSession(whoopSleepID: "sleep-1", sourceUpdatedAt: nil, start: now.addingTimeInterval(-28800),
-                     end: now, timezoneOffsetSeconds: 7200, isNap: nap, stages: [])
-    }
-    private func json(value: String = "31.813562", state: String = "SCORED", user: Int = 123) -> Data {
-        Data("{\"cycle_id\":1,\"sleep_id\":\"sleep-1\",\"user_id\":\(user),\"updated_at\":\"2026-09-15T08:00:00Z\",\"score_state\":\"\(state)\",\"score\":{\"user_calibrating\":false,\"hrv_rmssd_milli\":\(value)}}".utf8)
-    }
-    func testT02DocumentedReferencePreservesPrecisionAndAssociation() throws {
-        let item = try WhoopRecoveryReferenceAdapter.decode(json(), expectedUserID: "123", sleep: sleep(), sourceTimeZoneID: "Europe/Madrid")
-        XCTAssertEqual(item.milliseconds, 31.813562); XCTAssertEqual(item.sleepID, "sleep-1")
-        XCTAssertEqual(item.accountKey, WhoopRecovery.pseudonymousAccountKey(userID: "123"))
-        XCTAssertEqual(item.representedDate, sleep().end)
-    }
-    func testT06NullIsNotConvertedToZero() throws {
-        let item = try WhoopRecoveryReferenceAdapter.decode(json(value: "null"), expectedUserID: "123", sleep: sleep(), sourceTimeZoneID: "Europe/Madrid")
-        XCTAssertNil(item.milliseconds); XCTAssertThrowsError(try item.fingerprint())
-    }
-    func testT06UnknownContractAndWrongTypeRejected() {
-        XCTAssertThrowsError(try WhoopRecoveryReferenceAdapter.decode(json(value: "\"31.8\""), expectedUserID: "123", sleep: sleep(), sourceTimeZoneID: "Europe/Madrid"))
-        XCTAssertThrowsError(try WhoopRecoveryReferenceAdapter.decode(json(state: "UNKNOWN"), expectedUserID: "123", sleep: sleep(), sourceTimeZoneID: "Europe/Madrid"))
-    }
-    func testT20WrongProviderUserRejected() {
-        XCTAssertThrowsError(try WhoopRecoveryReferenceAdapter.decode(json(user: 456), expectedUserID: "123", sleep: sleep(), sourceTimeZoneID: "Europe/Madrid"))
-    }
-    func testT21NapCannotBeUsedAsMainSleep() {
-        XCTAssertThrowsError(try WhoopRecoveryReferenceAdapter.decode(json(), expectedUserID: "123", sleep: sleep(nap: true), sourceTimeZoneID: "Europe/Madrid"))
-    }
     func testV2StateAbsentFieldsDecodeConservatively() throws {
         let state = try JSONDecoder().decode(RecoverySyncState.self, from: Data("{}".utf8))
         XCTAssertFalse(state.enabled); XCTAssertFalse(state.configured); XCTAssertFalse(state.historicalResolved)
