@@ -13,6 +13,8 @@ date question during setup. Thereafter the dashboard, manual button and existing
 Sync WHOOP App Intent use the same recent synchronization pipeline. The dashboard
 shows all three data types and a common result. Configure sync remains available
 in Options; saving settings on an existing installation does not trigger an import.
+There is no separate recovery-HRV setup or import action: HRV is configured in
+Configure sync and imported by the common sync and history actions.
 
 ## Existing installations
 
@@ -50,15 +52,26 @@ retained if interruption occurs after those windows but before HRV completes. Re
 does not change the original cutoff or replay confirmed windows. The existing HRV
 cursor/WAL remains authoritative for its own progress.
 
+The read-visibility check for a historical window looks at the 30 days before the
+run starts, not before the window end, so a window older than the first Health data
+is not blocked by it. Recovery HRV counts as settled when its status is completed,
+limited, no data, skipped for an external exporter, paused for native export,
+disabled or unavailable before iOS 27, and no item is pending or access-deferred.
+The engine, the history importer and the run summary use this one rule, so a settled
+HRV phase lets the history import finish. Options shows Stop import only while a
+history import runs; cancelling an ordinary sync records no error.
+
 Manual synchronization and Shortcuts do not resume this separate history traversal.
 The existing recent correction windows, incremental overlap and recovery pending-ID
 reconciliation remain intact. There is no autonomous background scheduler.
 
 ## Acceptance evidence
 
-This design is implemented as candidate 0.3.0 (7), not a claim of a newly installed
-or physically accepted release. The normative September 15 specification takes
-precedence over the initial local design. See VALIDATION_0.3.md for actual results.
+This design was implemented in 0.3.1 (7), which VALIDATION_0.3.md describes as
+0.3.0 (7), and revised in candidate 0.4.0 (1). Neither is a claim of a newly
+installed or physically accepted release. The normative September 15 specification
+takes precedence over the initial local design. See VALIDATION_0.3.md and
+VALIDATION_0.4.md for actual results.
 
 Repository classification is gated by ensureUsable; inaccessible/corrupt data blocks
 setup rather than becoming a usable empty installation. Initial account binding,
