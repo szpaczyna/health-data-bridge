@@ -57,6 +57,24 @@ final class PrivateRecoveryAdapterTests: XCTestCase {
         XCTAssertThrowsError(try WhoopPrivateRecoveryAdapter.decode(record: duplicate, expectedUserID: "123"))
         XCTAssertThrowsError(try WhoopPrivateRecoveryAdapter.decode(record: record(nap: true), expectedUserID: "123"))
     }
+    func testNullOrStringHRVIsRejectedInsteadOfBecomingZero() throws {
+        let json = try JSONSerialization.jsonObject(with: JSONSerialization.data(withJSONObject: record(seconds: NSNull()))) as! [String: Any]
+        for input in [json, record(seconds: "0.047")] {
+            XCTAssertThrowsError(try WhoopPrivateRecoveryAdapter.decode(record: input, expectedUserID: "123")) {
+                XCTAssertEqual($0 as? RecoverySyncError, .invalidRecord)
+            }
+        }
+    }
+    func testRecoveryUserMustMatchCycleUserAndAccountKeyIsPseudonymous() throws {
+        var other = record(); var recovery = other["recovery"] as! [String: Any]
+        recovery["user_id"] = 456; other["recovery"] = recovery
+        XCTAssertThrowsError(try WhoopPrivateRecoveryAdapter.decode(record: other, expectedUserID: "123")) {
+            XCTAssertEqual($0 as? RecoverySyncError, .accountMismatch)
+        }
+        let item = try WhoopPrivateRecoveryAdapter.decode(record: record(), expectedUserID: "123")
+        XCTAssertEqual(item.accountKey, WhoopRecovery.pseudonymousAccountKey(userID: "123"))
+        XCTAssertEqual(item.sleepID, "sleep-id"); XCTAssertEqual(item.cycleID, "42")
+    }
     func testCalibrationRetainedAndFingerprintRejectsWritingIt() throws {
         let item = try WhoopPrivateRecoveryAdapter.decode(record: record(calibrating: 1, nap: 0), expectedUserID: "123")
         XCTAssertTrue(item.userCalibrating); XCTAssertThrowsError(try item.fingerprint())

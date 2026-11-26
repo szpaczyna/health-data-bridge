@@ -34,6 +34,10 @@ enum WhoopWebSession {
         (try? email(fromUserCookie: value)) != nil
     }
 
+    static func isWhoopCookieDomain(_ domain: String) -> Bool {
+        domain == "whoop.com" || domain.hasSuffix(".whoop.com")
+    }
+
     private static func nonEmpty(_ value: String?) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
             return nil

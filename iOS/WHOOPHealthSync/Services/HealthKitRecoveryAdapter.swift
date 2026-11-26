@@ -62,7 +62,8 @@ final class HealthKitRecoveryAdapter: RecoveryHealthProviding {
             }
             if let date = dates[type] { return .limited(since: date) }
             // Empty/own-only is ambiguous. An observed external sample is evidence, never a stored permission.
-            let samples = try await query(predicate: nil, limit: 100)
+            let external = NSCompoundPredicate(notPredicateWithSubpredicate: HKQuery.predicateForObjects(from: HKSource.default()))
+            let samples = try await query(predicate: external, limit: 1)
             if samples.contains(where: { $0.sourceRevision.source.bundleIdentifier != appBundle }) { return .externallyVisible }
             return manualConfirmation() ? .userConfirmedFullAccess : .unknown
         }

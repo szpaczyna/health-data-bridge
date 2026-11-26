@@ -31,6 +31,12 @@ struct AuthSmokeCheck {
         expect(MockCognitoURLProtocol.requests.isEmpty, "Web sign-in should not perform network requests.")
         expect(WhoopWebSession.containsEmail(userCookie: #"{"id":1,"email":"jose@example.com"}"#), "Unencoded full user cookie should count as complete.")
         expect(!WhoopWebSession.containsEmail(userCookie: #"{"id":1,"firstName":"Jose"}"#), "Short user cookie without email should not count as complete.")
+        for domain in ["whoop.com", ".whoop.com", "app.whoop.com"] {
+            expect(WhoopWebSession.isWhoopCookieDomain(domain), "Cookie domain \(domain) should be accepted.")
+        }
+        for domain in ["evilwhoop.com", ".evilwhoop.com", "whoop.com.evil.example"] {
+            expect(!WhoopWebSession.isWhoopCookieDomain(domain), "Cookie domain \(domain) should be rejected.")
+        }
 
         let invalidCases: [(String, [String: String], WhoopAuthError)] = [
             ("missing access token", validCookies.removing(WhoopWebSession.accessTokenCookie), .webSessionMissingAccessToken),
