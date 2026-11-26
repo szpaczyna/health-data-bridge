@@ -8,6 +8,8 @@ Existing installations go directly to their usual Sync now button. Their account
 
 After initial setup, add the Sync WHOOP App Shortcut to your own personal automation if desired. The app has no autonomous background scheduler. Locked-device access can fail safely without advancing checkpoints.
 
+The app asks you to reconnect WHOOP only when the session is lost: you are signed out, the refresh token is missing or WHOOP refuses it. WHOOP throttling and server errors fail the run but keep the session, so run the sync again later. A cancelled run is labelled Cancelled on the dashboard and in Activity.
+
 Daily heart-rate sync also rechecks the last 24 hours for points uploaded to WHOOP after a previous sync. Older unfinished progress is still included. Existing samples are reconciled again, so a repeated run does not duplicate confirmed records or replace another app's samples. This bounded recheck does not guarantee that arbitrarily delayed cloud data has arrived; use the explicit historical import for older gaps.
 
 For a day without Apple Watch, see [Backfilling a missed-watch period](BACKFILL.md), including downstream-app verification and Bevel limitations.
@@ -25,10 +27,10 @@ A supporting iOS 27 device is required. Recovery **RMSSD in milliseconds** is di
 
 ## Import an earlier period
 
-Open Options → Import an earlier period, select the start date and confirm. This is an explicit common history import for sleep, heart rate and configured HRV, separate from daily synchronization. Inspect progress, pending items and manual-review messages. Stop if necessary, then use Resume historical import. Confirmed sleep/heart-rate history windows and HRV cursors are retained across restarts; live checkpoints and Shortcuts are not reset or forced into this traversal. Existing wider HRV scope is retained and pending HRV work may include that earlier period.
+Open Options → Import an earlier period, select the start date and confirm. This is an explicit common history import for sleep, heart rate and configured HRV, separate from daily synchronization. Inspect progress, pending items and manual-review messages. Stop if necessary with Stop import, which Options shows only while a history import runs, then use Resume historical import. Confirmed sleep/heart-rate history windows and HRV cursors are retained across restarts; live checkpoints and Shortcuts are not reset or forced into this traversal. Existing wider HRV scope is retained and pending HRV work may include that earlier period.
 
 The original WHOOP account session is reused. Recovery setup does not require a new login merely because this optional feature was added. An account mismatch blocks use of another account's progress. There is no archive-state selector for switching between accounts.
 
-History windows are bounded and rate limiting is respected. An empty page is not taken as proof of absolute historical exhaustion. The UI reports completion of the indicated scope rather than claiming all provider history was verified.
+History windows are bounded and rate limiting is respected. If WHOOP asks the app to wait longer than 30 seconds, sleep and heart-rate requests fail with a rate-limit error instead of waiting; run the import again later. An empty page is not taken as proof of absolute historical exhaustion. The UI reports completion of the indicated scope rather than claiming all provider history was verified.
 
 If read permissions change, revisit authorization/configuration. A previous manual full-access confirmation cannot detect hidden later revocations. Limited historical visibility and uncertain native coexistence can leave records pending; do not assume an empty result means there are no existing records.

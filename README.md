@@ -18,7 +18,7 @@ A free, open-source iOS app that fills gaps in Apple Health using data from your
 
 ## Status and important limitations
 
-Published baseline: **0.2.0 (6)**. The source candidate is **0.3.0 (7)** with unified setup and synchronization. See its [P01–P24 validation report](docs/VALIDATION_0.3.md) for executed checks and outstanding physical acceptance. No new personal-iPhone installation is claimed. Previous results are summarized in [Testing](docs/TESTING.md).
+Published baseline: **0.3.1 (7)**, tag `0.3.1`, with unified setup and synchronization; its [P01–P24 validation report](docs/VALIDATION_0.3.md) describes it as 0.3.0 (7). The current source release is **0.4.0 (1)**, tag `0.4.0`, which fixes sync, reconciliation, rate-limit, logging and UI defects found in a code audit. See the [0.4.0 release notes](docs/RELEASE_NOTES_0.4.0.md) and the [0.4.0 validation report](docs/VALIDATION_0.4.md) for executed checks and outstanding physical acceptance. No new personal-iPhone installation is claimed. Previous results are summarized in [Testing](docs/TESTING.md).
 
 The app currently uses **private, undocumented WHOOP endpoints**, including its authentication flow. They can change or become unavailable. Publishing the source does not establish permission to use these endpoints: review [WHOOP's API terms](https://developer.whoop.com/api-terms-of-use/) and applicable service terms. No claim of WHOOP authorization is made. This license covers this project's code, not WHOOP services, data or trademarks.
 

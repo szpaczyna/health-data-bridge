@@ -7,7 +7,7 @@ swift test --jobs 2
 bash scripts/verify_local.sh
 ```
 
-Core tests cover normalization, overlap reconciliation, stable identifiers, recovery revisions, WAL/checkpoint recovery, bounded private-provider pagination, retry deadlines, account mismatch and incomplete history. Service checks cover authentication mocks, private-API transport mocks, persistence, legacy sleep/heart-rate scenarios, recovery setup, failed authorization, dedicated import, metadata, App Intents and capability/privacy lint. Public fixtures use synthetic identities and health values.
+Core tests cover normalization, overlap reconciliation, stable identifiers, recovery revisions, WAL/checkpoint recovery, bounded private-provider pagination, retry deadlines, account mismatch and incomplete history. Service checks cover authentication mocks, private-API transport mocks, persistence, legacy sleep/heart-rate scenarios, unified setup with recovery HRV, failed authorization, history import, metadata, App Intents and capability/privacy lint. Since 0.4.0 they also cover the read guard anchored at run start and ignoring app-owned samples, stale stages of a revised night, reconnect only on a lost session, rate-limit waits above the retry cap, user-ID redaction, the WHOOP cookie domain, sub-second sleep records after reload and silent sync cancellation. Public fixtures use synthetic identities and health values.
 
 GitHub Actions runs core XCTest and `scripts/verify_local.sh`. It does not call WHOOP or write HealthKit samples. Hosted CI does not certify the physical iPhone acceptance cases below.
 
@@ -28,6 +28,20 @@ xcodebuild -project iOS/WHOOPHealthSync.xcodeproj \
 The fixture path is simulator-gated, requires the isolated name and is absent from physical-device builds. UI fixtures do not contact WHOOP. Native HealthKit tests write only UUID-isolated synthetic samples and delete their exact returned samples; they must not use a personal Health store.
 
 Exercise full-read, limited-history and denied-read configurations separately. Authorization prompts and runtime availability matter; record skipped tests rather than reporting them as successes.
+
+## 0.4.0 (1) local results
+
+Run on November 26, 2026 at commit `a90995d` with Xcode 27.2 and Swift 6.4.2. Details,
+the findings-to-test table and pending physical checks are in
+[the 0.4.0 report](VALIDATION_0.4.md).
+
+| Scope | Result |
+| --- | --- |
+| Core XCTest (`swift test --jobs 2`) | 123 passed, 0 failed |
+| `scripts/verify_local.sh` | Passed; ViewModel smoke 17 scenarios |
+| Generic iOS Simulator Debug build, unsigned | Passed |
+
+No isolated simulator native/UI suite was run for 0.4.0.
 
 ## Development results before publication
 
