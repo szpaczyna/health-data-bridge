@@ -73,6 +73,6 @@ These notes cover every change in this fork (szpaczyna/health-data-bridge) since
 - Core checks moved into the XCTest target (#24).
 - `SyncCoordinator` owns the sync lock and Shortcut coordination; `SyncRunStatus` replaces status strings (#13, #14, #23).
 
-## Not verified for this release
+## Device checks
 
-The maintainer installed 0.4.0 (8) from Xcode on an iPhone 17 running iOS 27.3 and reported a successful basic test. These cases were not recorded one by one: HealthKit queries on the device, a real WHOOP account, an update install over 0.3.1 and a Shortcut run. GitHub Actions runs were cancelled or queued for lack of hosted runners, so the results above come from local runs. See [VALIDATION_0.4.md](VALIDATION_0.4.md).
+The maintainer installed 0.4.0 (8) from Xcode on an iPhone 17 running iOS 27.3 over the existing 0.3.1 install and reported these working: the HealthKit queries on the device, sync with a real WHOOP account, the update itself and the Sync WHOOP Shortcut. History import and recovery HRV with a real account were not reported separately. GitHub Actions runs were cancelled or queued for lack of hosted runners, so the automated test results come from local runs. See [VALIDATION_0.4.md](VALIDATION_0.4.md).

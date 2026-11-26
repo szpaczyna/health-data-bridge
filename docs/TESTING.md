@@ -32,7 +32,7 @@ Exercise full-read, limited-history and denied-read configurations separately. A
 ## 0.4.0 (8) local results
 
 Run on November 26, 2026 at commit `a90995d` with Xcode 27.2 and Swift 6.4.2. Details,
-the findings-to-test table and pending physical checks are in
+the findings-to-test table and the device checks are in
 [the 0.4.0 report](VALIDATION_0.4.md).
 
 | Scope | Result |

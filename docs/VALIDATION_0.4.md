@@ -6,8 +6,8 @@ Date: November 26, 2026. Base commit: `a90995d5bf5d1a30ca1befb9bc4dbcc3c2299d05`
 `48e0b2e`.
 
 Status: release built from source. Automated checks passed. The maintainer installed
-0.4.0 (8) from Xcode on an iPhone 17 running iOS 27.3 and reported a successful basic
-test (see "Reproduction and physical acceptance"). An omission does not count as
+0.4.0 (8) from Xcode on an iPhone 17 running iOS 27.3 and reported the device checks
+listed under "Reproduction and physical acceptance" as working. An omission does not count as
 approval. No IPA, TestFlight or App Store build was published.
 
 Version drift: before this release the Xcode project declared 0.3.1 (7), while
@@ -68,7 +68,9 @@ Fixtures are synthetic.
 | E03: `xcodebuild` Debug build, generic iOS Simulator, `CODE_SIGNING_ALLOWED=NO` | Exit 0 | Compiles the app; runs no test and no HealthKit query |
 
 Not executed for this candidate: isolated simulator native/UI suites, Release iPhone
-build and signing check, binary update test, visual QA.
+build and signing check, the scripted binary update test with store comparison, visual
+QA. The Xcode update on the maintainer's iPhone is recorded under "Reproduction and
+physical acceptance".
 
 GitHub Actions: several runs for PRs #27 to #32 and their merges into `main` were
 cancelled or were still queued for lack of hosted runners. No run showed a failed
@@ -81,12 +83,12 @@ required it and on the combined branches before each merge wave.
 E01 to E03 refer to the runs above. "Compile only" means E02/E03 compile the change
 but no test exercises it.
 
-| ID | Change | PR | Covering check | Pending |
+| ID | Change | PR | Covering check | Pending or device result |
 | --- | --- | --- | --- | --- |
 | 1 | Read-visibility window anchored at run start | #27 | E02 engine: `testHistoryReadGuardIsAnchoredAtRunStart` | Real history import older than first Health data |
 | 2 | Keep own HR samples that exactly match a point | #28 | E01: `testHeartRateCloselySpacedOwnSamplesAreNotDeletedOnResync` | None locally |
-| 3 | Read guard counts only other sources | #27 | E02 engine: `testOngoingReadGuardIgnoresAppOwnedSamples` (fake models ownership) | HealthKit source predicate on device: not testable locally |
-| 4 | Own stages also found by WHOOP sleep ID | #27 | E02 engine: `testShortenedSleepDeletesStaleOwnStagesOutsideWindow` | HealthKit metadata predicate on device: not testable locally |
+| 3 | Read guard counts only other sources | #27 | E02 engine: `testOngoingReadGuardIgnoresAppOwnedSamples` (fake models ownership) | Device: maintainer reported the predicate working |
+| 4 | Own stages also found by WHOOP sleep ID | #27 | E02 engine: `testShortenedSleepDeletesStaleOwnStagesOutsideWindow` | Device: maintainer reported the predicate working |
 | 5 | Clamp sleep stages instead of failing the night | #28 | E01: `testSleepNormalizerClampsStageOverrunningSession`, `testSleepNormalizerClampsOverlappingStage`, `testSleepNormalizerDropsZeroLengthStage`, `testSleepNormalizerThrowsWhenAllStagesAreOutsideSession`, `testSleepNormalizerThrowsForInvalidSessionBounds` | The invalid-bounds test also passes before the fix |
 | 6 | Reconnect only on lost session | #27 | E02 engine: `testOnlyLostSessionsCountAsAuthenticationFailures` | Real Cognito throttling |
 | 7 | Shared recovery settled-status rule | #27 | E01: `testRecoverySettledStatusesAgreeWithIncompleteResults`; E02 engine: `testPausedNativeExportSettlesRecovery`, `testHistoryImportFinishesWhenNativeExportPaused` | None locally |
@@ -101,7 +103,7 @@ but no test exercises it.
 | 16 | Cookie domain limited to `whoop.com` and subdomains | #30 | E02 auth smoke: `evilwhoop.com` rejected, `app.whoop.com` accepted | Real WHOOP sign-in |
 | 17 | Sleep records match within one second after reload | #30 | E02 repository smoke: sub-second record reloaded and merged | Relaunch with a real store |
 | 18 | Dead helpers removed; one `run_smoke` function | #31 | E01, E02 (the script itself) | None |
-| HRV access query | External HRV access query excludes own samples | #30 | Compile only (E03) | HealthKit predicate on device: not testable locally |
+| HRV access query | External HRV access query excludes own samples | #30 | Compile only (E03) | Device: maintainer reported the predicate working |
 
 ## Deferred, out of scope
 
@@ -123,14 +125,17 @@ xcodebuild -quiet -project iOS/WHOOPHealthSync.xcodeproj -scheme WHOOPHealthSync
 ```
 
 Physical acceptance: the maintainer installed 0.4.0 (8) from Xcode on an iPhone 17
-running iOS 27.3 and reported a successful basic test. The report does not list
-individual cases, so each check below remains unconfirmed on its own:
+running iOS 27.3 and reported these checks as working:
 
-- HealthKit predicates on a device: the other-source read guard (finding 3), the
+- HealthKit predicates on the device: the other-source read guard (finding 3), the
   WHOOP sleep ID stage query (finding 4) and the HRV read access query.
-- Sync, history import and recovery HRV with a real WHOOP account.
-- Install as an update over 0.3.1 (7) **without uninstalling**, then confirm that the
-  sync store and the Keychain session survive.
-- Run the existing Sync WHOOP Shortcut after the update.
+- Sync with a real WHOOP account.
+- Update over 0.3.1 (7): Xcode built 0.4.0 (8) and installed it onto the phone over
+  the existing app.
+- The Sync WHOOP Shortcut.
+
+The report covers these outcomes only. History import and recovery HRV with a real
+account, and a byte-level comparison of the sync store across the update, were not
+reported separately.
 
 Logs, binaries, signing files, device identifiers and state copies stay outside Git.
