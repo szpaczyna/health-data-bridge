@@ -222,7 +222,21 @@ struct WhoopAPISmokeCheck {
         do { _ = try await client.fetchRecoveryCycleRecords(userID: user.id, window: TimeRange(start: start, end: end)); fatalError("429 must fail safely") }
         catch let RecoverySyncError.rateLimited(date) {
             expect(date.timeIntervalSince(before) >= 119, "Retry-After seconds must become a deadline.")
+            expect(date.timeIntervalSince(Date()) <= 125, "A normal Retry-After must stay close to its value.")
         }
+        let httpDateFormatter = DateFormatter(); httpDateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        httpDateFormatter.timeZone = TimeZone(secondsFromGMT: 0); httpDateFormatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+        for farRetryAfter in ["31536000", httpDateFormatter.string(from: Date().addingTimeInterval(31_536_000))] {
+            MockWhoopURLProtocol.retryAfter = farRetryAfter
+            do {
+                _ = try await WhoopAPIClient(auth: auth, session: session).fetchRecoveryCycleRecords(userID: user.id, window: TimeRange(start: start, end: end))
+                fatalError("429 must fail safely")
+            } catch let RecoverySyncError.rateLimited(date) {
+                expect(date.timeIntervalSince(Date()) <= 86_400 + 5, "Retry-After \(farRetryAfter) must be capped at 24 hours.")
+                expect(date.timeIntervalSince(Date()) >= 86_400 - 5, "Capped Retry-After \(farRetryAfter) should defer for the full cap.")
+            }
+        }
+        MockWhoopURLProtocol.retryAfter = "120"
         let requestCount = MockWhoopURLProtocol.requests.count
         do { _ = try await client.fetchRecoveryCycleRecords(userID: user.id, window: TimeRange(start: start, end: end)); fatalError("Backoff must prevent request") }
         catch let RecoverySyncError.rateLimited(date) { expect(date > Date(), "Deadline remains active") }
