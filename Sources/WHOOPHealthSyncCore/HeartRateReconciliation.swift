@@ -83,13 +83,8 @@ public enum HeartRateCoverageReconciler {
         }
 
         var cursor = 0
-        var pointsToWrite: [HeartRatePoint] = []
-        var samplesToDelete: [ExistingHeartRateSample] = []
-        var skipped = 0
-        var externalDuplicates = 0
-        var replacedOwn = 0
-        var deletedIDs = Set<String>()
-
+        var overlapsByPoint: [[ExistingHeartRateSample]] = []
+        overlapsByPoint.reserveCapacity(sortedPoints.count)
         for point in sortedPoints {
             let bucket = bucket(for: point, stepSeconds: stepSeconds, semantics: semantics)
             while cursor < sortedExisting.count && isStrictlyBeforeBucket(sortedExisting[cursor], bucket: bucket) {
@@ -104,14 +99,40 @@ public enum HeartRateCoverageReconciler {
                 }
                 index += 1
             }
+            overlapsByPoint.append(overlaps)
+        }
 
+        // Points closer than one step overlap each other's own samples; an equivalent kept for one point must survive the rest.
+        var equivalentByPoint: [ExistingHeartRateSample?] = []
+        equivalentByPoint.reserveCapacity(sortedPoints.count)
+        var keptIDs = Set<String>()
+        for (point, overlaps) in zip(sortedPoints, overlapsByPoint) {
+            let bucket = bucket(for: point, stepSeconds: stepSeconds, semantics: semantics)
+            let equivalent = overlaps.contains { !$0.isOwnedByApp } ? nil : overlaps.first {
+                $0.isOwnedByApp && $0.range == bucket && abs($0.bpm - point.bpm) <= equivalentToleranceBPM
+            }
+            if let equivalent {
+                keptIDs.insert(equivalent.id)
+            }
+            equivalentByPoint.append(equivalent)
+        }
+
+        var pointsToWrite: [HeartRatePoint] = []
+        var samplesToDelete: [ExistingHeartRateSample] = []
+        var skipped = 0
+        var externalDuplicates = 0
+        var replacedOwn = 0
+        var deletedIDs = Set<String>()
+
+        for (pointIndex, point) in sortedPoints.enumerated() {
+            let overlaps = overlapsByPoint[pointIndex]
             let external = overlaps.filter { !$0.isOwnedByApp }
             let owned = overlaps.filter(\.isOwnedByApp)
 
             if !external.isEmpty {
                 externalDuplicates += 1
                 skipped += 1
-                for sample in owned where !deletedIDs.contains(sample.id) {
+                for sample in owned where !deletedIDs.contains(sample.id) && !keptIDs.contains(sample.id) {
                     samplesToDelete.append(sample)
                     deletedIDs.insert(sample.id)
                 }
@@ -119,22 +140,15 @@ public enum HeartRateCoverageReconciler {
             }
 
             if !owned.isEmpty {
-                let exactEquivalent = owned.first {
-                    $0.range == bucket && abs($0.bpm - point.bpm) <= equivalentToleranceBPM
-                }
-                if let exactEquivalent {
+                if equivalentByPoint[pointIndex] != nil {
                     skipped += 1
-                    for sample in owned where sample.id != exactEquivalent.id && !deletedIDs.contains(sample.id) {
-                        samplesToDelete.append(sample)
-                        deletedIDs.insert(sample.id)
-                    }
                 } else {
                     replacedOwn += 1
-                    for sample in owned where !deletedIDs.contains(sample.id) {
-                        samplesToDelete.append(sample)
-                        deletedIDs.insert(sample.id)
-                    }
                     pointsToWrite.append(point)
+                }
+                for sample in owned where !deletedIDs.contains(sample.id) && !keptIDs.contains(sample.id) {
+                    samplesToDelete.append(sample)
+                    deletedIDs.insert(sample.id)
                 }
                 continue
             }
