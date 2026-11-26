@@ -162,6 +162,17 @@ final class SyncRepository {
         }
         try save()
     }
+    func narrowDeferredWindow(to end: Date, for type: String) throws {
+        try ensureUsable()
+        guard let window = try deferredWindow(for: type), end < window.end else { return }
+        if end <= window.start {
+            snapshot.states.removeValue(forKey: "deferred-\(type)-start")
+            snapshot.states.removeValue(forKey: "deferred-\(type)-end")
+        } else {
+            snapshot.states["deferred-\(type)-end"] = SyncStateRecord(key: "deferred-\(type)-end", dateValue: end)
+        }
+        try save()
+    }
 
     func recoveryState() throws -> RecoverySyncState {
         try ensureUsable()
