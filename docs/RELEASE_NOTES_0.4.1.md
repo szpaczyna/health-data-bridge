@@ -28,4 +28,4 @@ These notes cover the changes since tag `0.4.0`: PRs #35 to #41 and the release 
 
 ## Device checks
 
-No device check of 0.4.1 (9) has been reported yet. The sign-in page Retry, the Version row and a token refresh during sign-in on a device are listed as not executed in [VALIDATION_0.4.1.md](VALIDATION_0.4.1.md). GitHub Actions results were not awaited; the automated results come from local runs.
+On the iPhone 17 with iOS 27.3, the maintainer reported the Version row in About, and an offline sync that stops with "Could not finish; retry required" and shows "The Internet connection appears to be offline." under Current issues. The sign-in page Retry and a token refresh during sign-in are still listed as not executed in [VALIDATION_0.4.1.md](VALIDATION_0.4.1.md). GitHub Actions results were not awaited; the automated results come from local runs.
