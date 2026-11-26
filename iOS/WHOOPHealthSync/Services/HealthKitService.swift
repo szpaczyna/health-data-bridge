@@ -117,8 +117,12 @@ final class HealthKitService {
         )
     }
 
-    func querySleepSamples(from start: Date, to end: Date) async throws -> [HealthKitSleepSampleRecord] {
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+    func querySleepSamples(from start: Date, to end: Date, whoopSleepID: String?) async throws -> [HealthKitSleepSampleRecord] {
+        var predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        if let whoopSleepID {
+            let identity = HKQuery.predicateForObjects(withMetadataKey: MetadataKeys.whoopSleepID, allowedValues: [whoopSleepID])
+            predicate = NSCompoundPredicate(orPredicateWithSubpredicates: [predicate, identity])
+        }
         let samples: [HKCategorySample] = try await runSampleQuery(sampleType: sleepType, predicate: predicate)
         AppLog.healthKit.info("Read \(samples.count) sleep samples from HealthKit.")
         return samples.map { sample in
@@ -182,15 +186,21 @@ final class HealthKitService {
     }
 
     func hasSleepSamples(from start: Date, to end: Date) async throws -> Bool {
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
-        let samples: [HKCategorySample] = try await runSampleQuery(sampleType: sleepType, predicate: predicate, limit: 1)
+        let samples: [HKCategorySample] = try await runSampleQuery(sampleType: sleepType, predicate: Self.externalSamplePredicate(from: start, to: end), limit: 1)
         return !samples.isEmpty
     }
 
     func hasHeartRateSamples(from start: Date, to end: Date) async throws -> Bool {
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
-        let samples: [HKQuantitySample] = try await runSampleQuery(sampleType: heartRateType, predicate: predicate, limit: 1)
+        let samples: [HKQuantitySample] = try await runSampleQuery(sampleType: heartRateType, predicate: Self.externalSamplePredicate(from: start, to: end), limit: 1)
         return !samples.isEmpty
+    }
+
+    // Without read access HealthKit still returns this app's own samples, so they cannot prove visibility.
+    private static func externalSamplePredicate(from start: Date, to end: Date) -> NSPredicate {
+        NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForSamples(withStart: start, end: end, options: []),
+            NSCompoundPredicate(notPredicateWithSubpredicate: HKQuery.predicateForObjects(from: HKSource.default()))
+        ])
     }
 
     private func runSampleQuery<T: HKSample>(sampleType: HKSampleType, predicate: NSPredicate, limit: Int = HKObjectQueryNoLimit) async throws -> [T] {

@@ -11,7 +11,7 @@ protocol WhoopAPIProviding {
 
 protocol HealthDataProviding {
     func authorizedBoundary(for type: String) async throws -> Date?
-    func querySleepSamples(from start: Date, to end: Date) async throws -> [HealthKitSleepSampleRecord]
+    func querySleepSamples(from start: Date, to end: Date, whoopSleepID: String?) async throws -> [HealthKitSleepSampleRecord]
     func saveSleepFragments(_ fragments: [SleepWriteFragment]) async throws
     func deleteSleepSamples(_ records: [HealthKitSleepSampleRecord]) async throws
     func queryHeartRateSamples(from start: Date, to end: Date) async throws -> [HealthKitHeartRateSampleRecord]
@@ -47,10 +47,10 @@ extension SyncPersisting {
 extension HealthDataProviding {
     func authorizedBoundary(for type: String) async throws -> Date? { nil }
     func hasSleepSamples(from start: Date, to end: Date) async throws -> Bool {
-        try await !querySleepSamples(from: start, to: end).isEmpty
+        try await querySleepSamples(from: start, to: end, whoopSleepID: nil).contains { !$0.existing.isOwnedByApp }
     }
     func hasHeartRateSamples(from start: Date, to end: Date) async throws -> Bool {
-        try await !queryHeartRateSamples(from: start, to: end).isEmpty
+        try await queryHeartRateSamples(from: start, to: end).contains { !$0.existing.isOwnedByApp }
     }
 }
 
@@ -119,8 +119,8 @@ final class HistoryImporter {
             summary.errors.append(String(localized: "Recovery history is incomplete; resume the historical import."))
         }
         let recovery = try repository.recoveryState()
-        if [.completed, .historyLimited, .disabled, .requiresIOS27].contains(summary.recovery.status) &&
-           (!recovery.enabled || recovery.historicalResolved || summary.recovery.status == .requiresIOS27) {
+        if summary.recovery.status.isSettled &&
+           (!recovery.enabled || recovery.historicalResolved || [.requiresIOS27, .pausedNativeExport].contains(summary.recovery.status)) {
             try repository.finishHistory()
             progressChanged?()
         }
@@ -246,7 +246,7 @@ final class SyncEngine {
             AppLog.sync.info("\(origin.logLabel, privacy: .public) sync started. HR \(plan.heartRateWindow.start, privacy: .public)-\(plan.heartRateWindow.end, privacy: .public)")
 
             try Task.checkCancellation()
-            try await validateHealthKitReadVisibility(plan: plan, runID: run)
+            try await validateHealthKitReadVisibility(plan: plan, startedAt: startedAt, runID: run)
             recordEvent(runID: run, level: "info", category: "api", message: String(localized: "WHOOP user authenticated; ID received."))
             let sleep = try await syncSleep(user: user, plan: plan, runID: run)
             summary.merge(sleep)
@@ -261,7 +261,7 @@ final class SyncEngine {
             if let recoveryPipeline, historyWindow == nil {
                 do {
                     summary.recovery = try await recoveryPipeline.run(accountKey: WhoopRecovery.pseudonymousAccountKey(userID: user.id), mode: recoveryMode, maxPages: recoveryMode == .history ? Int.max : 20)
-                    if ![.completed, .historyLimited, .disabled, .requiresIOS27].contains(summary.recovery.status) || summary.recovery.pending > 0 {
+                    if !summary.recovery.isSettled {
                         summary.errors.append("Recovery HRV: " + summary.recovery.status.rawValue)
                     }
                 } catch {
@@ -303,14 +303,14 @@ final class SyncEngine {
         }
     }
 
-    private func validateHealthKitReadVisibility(plan: IncrementalSyncPlan, runID: UUID) async throws {
+    private func validateHealthKitReadVisibility(plan: IncrementalSyncPlan, startedAt: Date, runID: UUID) async throws {
         guard requiresInitialHealthKitReadVisibility else { return }
 
         var missingTypes: [String] = []
-        let visibilityWindow = initialReadVisibilityWindow(for: plan)
+        let visibilityWindow = initialReadVisibilityWindow(endingAt: startedAt)
 
         if plan.isFirstSleepSync {
-            let samples = try await healthKit.querySleepSamples(from: min(max(visibilityWindow.start, sleepBoundary ?? .distantPast), visibilityWindow.end), to: visibilityWindow.end)
+            let samples = try await healthKit.querySleepSamples(from: min(max(visibilityWindow.start, sleepBoundary ?? .distantPast), visibilityWindow.end), to: visibilityWindow.end, whoopSleepID: nil)
             let externalCount = samples.filter { !$0.existing.isOwnedByApp }.count
             recordEvent(
                 runID: runID,
@@ -370,10 +370,11 @@ final class SyncEngine {
         }
     }
 
-    private func initialReadVisibilityWindow(for plan: IncrementalSyncPlan) -> TimeRange {
+    // History runs move plan.syncStartedAt to the window end, where no samples may exist yet.
+    private func initialReadVisibilityWindow(endingAt end: Date) -> TimeRange {
         let lookback = max(initialReadVisibilityLookbackDays, 1)
-        let start = plan.syncStartedAt.addingTimeInterval(-TimeInterval(lookback * 24 * 60 * 60))
-        return TimeRange(start: start, end: plan.syncStartedAt)
+        let start = end.addingTimeInterval(-TimeInterval(lookback * 24 * 60 * 60))
+        return TimeRange(start: start, end: end)
     }
 
     private func syncSleep(user: WhoopUser, plan: IncrementalSyncPlan, runID: UUID) async throws -> SyncSummary {
@@ -415,7 +416,8 @@ final class SyncEngine {
                         summary.errors.append("Sleep interval deferred by historical access limit.")
                         continue
                     }
-                    let existingSamples = try await healthKit.querySleepSamples(from: healthKitWindowStart, to: healthKitWindowEnd)
+                    // Own stages of this sleep outside the window remain after it is shortened, so they are fetched by ID.
+                    let existingSamples = try await healthKit.querySleepSamples(from: healthKitWindowStart, to: healthKitWindowEnd, whoopSleepID: session.whoopSleepID)
                     recordEvent(runID: runID, level: "info", category: "sleep.healthkit", message: String(localized: "Read \(existingSamples.count) HealthKit samples for sleep \(session.whoopSleepID)."))
                     let reconciliation = SleepCoverageReconciler.plan(
                         session: session,
@@ -664,8 +666,17 @@ final class SyncEngine {
     }
 
     static func isAuthenticationFailure(_ error: Error) -> Bool {
-        if error is WhoopAuthError {
-            return true
+        if let authError = error as? WhoopAuthError {
+            switch authError {
+            case .notAuthenticated, .webSessionMissingRefreshToken:
+                return true
+            case let .cognitoRejected(status, message):
+                // Throttling and outages also arrive as Cognito errors; only a refused token means the session is lost.
+                return (status == 400 || status == 401) && message.hasPrefix("NotAuthorizedException")
+            case .unexpectedCognitoResponse, .invalidHTTPResponse, .webSessionMissingAccessToken,
+                 .webSessionMalformedAccessToken, .webSessionMissingEmail:
+                return false
+            }
         }
         if let apiError = error as? WhoopAPIError {
             switch apiError {

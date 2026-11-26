@@ -143,13 +143,7 @@ public struct SyncSummary: Equatable, Sendable {
         guard errors.isEmpty else { return true }
         let confirmed: [SyncDataResult] = [.updated, .existing, .noData]
         guard confirmed.contains(sleepResult), confirmed.contains(heartRateResult) else { return true }
-        guard recovery.pending == 0, recovery.deferredAccess == 0 else { return true }
-        switch recovery.status {
-        case .disabled, .requiresIOS27, .pausedNativeExport, .completed, .historyLimited, .noData, .skippedExternal:
-            return false
-        default:
-            return true
-        }
+        return !recovery.isSettled
     }
 
     public mutating func merge(_ other: SyncSummary) {
