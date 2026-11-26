@@ -124,7 +124,91 @@ struct AuthSmokeCheck {
         expect(tokenStore.bundle == nil, "Disconnect should remove saved tokens.")
         expect(auth.currentStatus() == .disconnected, "Disconnect should return to disconnected status.")
 
+        try await checkConcurrentRefreshSharesOneRequest(session: session, bundle: tokenBundle)
+        try await checkSignInDuringRefreshWins(session: session, bundle: tokenBundle)
+        try await checkDisconnectDuringRefreshWins(session: session, bundle: tokenBundle)
+
         print("WhoopAuthService smoke check passed")
+    }
+
+    private static func expiredCopy(of bundle: TokenBundle) -> TokenBundle {
+        var copy = bundle
+        copy.expiresAt = Date().addingTimeInterval(-10)
+        return copy
+    }
+
+    private static func checkConcurrentRefreshSharesOneRequest(session: URLSession, bundle: TokenBundle) async throws {
+        MockCognitoURLProtocol.reset()
+        MockCognitoURLProtocol.holdResponses = true
+        let store = InMemoryTokenStore()
+        store.bundle = expiredCopy(of: bundle)
+        let auth = WhoopAuthService(tokenStore: store, session: session)
+
+        let first = Task { try await auth.validAccessToken() }
+        let second = Task { try await auth.validAccessToken() }
+        let reached = await MockCognitoURLProtocol.waitForRequests(1)
+        expect(reached, "Concurrent refresh should reach Cognito.")
+        // Give an unserialized second caller time to send its own request before releasing.
+        _ = await MockCognitoURLProtocol.waitForRequests(2)
+        MockCognitoURLProtocol.releasePending()
+        let firstToken = try await first.value
+        let secondToken = try await second.value
+
+        expect(MockCognitoURLProtocol.requests.count == 1, "Concurrent validAccessToken calls should share one refresh request.")
+        expect(firstToken == secondToken, "Concurrent validAccessToken calls should return the same token.")
+        expect(firstToken == "access-after-refresh", "Concurrent validAccessToken calls should return the refreshed token.")
+    }
+
+    private static func checkSignInDuringRefreshWins(session: URLSession, bundle: TokenBundle) async throws {
+        MockCognitoURLProtocol.reset()
+        MockCognitoURLProtocol.holdResponses = true
+        let store = InMemoryTokenStore()
+        store.bundle = expiredCopy(of: bundle)
+        let auth = WhoopAuthService(tokenStore: store, session: session)
+
+        let staleRefresh = Task { try await auth.refresh() }
+        let reached = await MockCognitoURLProtocol.waitForRequests(1)
+        expect(reached, "Held refresh should reach Cognito.")
+        let newAccessToken = fixtureJWT(exp: 2_100_000_000)
+        let newBundle = try auth.signIn(webCookies: [
+            WhoopWebSession.accessTokenCookie: newAccessToken,
+            WhoopWebSession.refreshTokenCookie: "new-refresh-token",
+            WhoopWebSession.userCookie: "%7B%22email%22%3A%22new%40example.com%22%2C%22id%22%3A2%7D"
+        ])
+        MockCognitoURLProtocol.releasePending()
+        let staleResult = await staleRefresh.result
+
+        expect(store.bundle == newBundle, "A refresh started before sign-in should not overwrite the new session.")
+        expect(store.bundle?.email == "new@example.com", "Sign-in during refresh should keep the new account email.")
+        expect(store.bundle?.accessToken == newAccessToken, "Sign-in during refresh should keep the new access token.")
+        expect(store.bundle?.refreshToken == "new-refresh-token", "Sign-in during refresh should keep the new refresh token.")
+        switch staleResult {
+        case .success:
+            fatalError("A refresh overtaken by sign-in should throw.")
+        case let .failure(error):
+            expect(
+                error.localizedDescription == WhoopAuthError.sessionChanged.localizedDescription,
+                "A refresh overtaken by sign-in should throw sessionChanged."
+            )
+        }
+    }
+
+    private static func checkDisconnectDuringRefreshWins(session: URLSession, bundle: TokenBundle) async throws {
+        MockCognitoURLProtocol.reset()
+        MockCognitoURLProtocol.holdResponses = true
+        let store = InMemoryTokenStore()
+        store.bundle = expiredCopy(of: bundle)
+        let auth = WhoopAuthService(tokenStore: store, session: session)
+
+        let staleRefresh = Task { try await auth.refresh() }
+        let reached = await MockCognitoURLProtocol.waitForRequests(1)
+        expect(reached, "Held refresh should reach Cognito.")
+        try auth.disconnect()
+        MockCognitoURLProtocol.releasePending()
+        _ = await staleRefresh.result
+
+        expect(store.bundle == nil, "A refresh started before disconnect should not restore tokens.")
+        expect(auth.currentStatus() == .disconnected, "Disconnect during refresh should stay disconnected.")
     }
 
     private static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -166,7 +250,13 @@ private extension Dictionary where Key == String, Value == String {
 }
 
 private final class InMemoryTokenStore: TokenStoring {
-    var bundle: TokenBundle?
+    private let lock = NSLock()
+    private var storedBundle: TokenBundle?
+
+    var bundle: TokenBundle? {
+        get { lock.lock(); defer { lock.unlock() }; return storedBundle }
+        set { lock.lock(); defer { lock.unlock() }; storedBundle = newValue }
+    }
 
     func load() throws -> TokenBundle? {
         bundle
@@ -187,14 +277,49 @@ private final class MockCognitoURLProtocol: URLProtocol {
         var body: [String: Any]
     }
 
-    static var requests: [RecordedRequest] = []
+    private static let lock = NSLock()
+    private static var recordedRequests: [RecordedRequest] = []
+    private static var pendingCompletions: [() -> Void] = []
     static var overrideStatusCode: Int?
     static var overrideResponseBody: [String: Any]?
+    private static var heldFlag = false
+
+    static var holdResponses: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return heldFlag }
+        set { lock.lock(); defer { lock.unlock() }; heldFlag = newValue }
+    }
+
+    static var requests: [RecordedRequest] {
+        lock.lock(); defer { lock.unlock() }
+        return recordedRequests
+    }
 
     static func reset() {
-        requests.removeAll()
+        releasePending()
+        lock.lock()
+        recordedRequests.removeAll()
+        lock.unlock()
         overrideStatusCode = nil
         overrideResponseBody = nil
+        holdResponses = false
+    }
+
+    static func releasePending() {
+        lock.lock()
+        let completions = pendingCompletions
+        pendingCompletions.removeAll()
+        lock.unlock()
+        completions.forEach { $0() }
+    }
+
+    static func waitForRequests(_ count: Int) async -> Bool {
+        for _ in 0..<200 {
+            if requests.count >= count {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return requests.count >= count
     }
 
     override class func canInit(with request: URLRequest) -> Bool {
@@ -209,12 +334,7 @@ private final class MockCognitoURLProtocol: URLProtocol {
         do {
             let bodyData = try requestBodyData()
             let body = try JSONSerialization.jsonObject(with: bodyData, options: []) as? [String: Any] ?? [:]
-            MockCognitoURLProtocol.requests.append(
-                RecordedRequest(
-                    headers: request.allHTTPHeaderFields ?? [:],
-                    body: body
-                )
-            )
+            let recorded = RecordedRequest(headers: request.allHTTPHeaderFields ?? [:], body: body)
 
             let statusCode = MockCognitoURLProtocol.overrideStatusCode ?? 200
             let responseBody = try MockCognitoURLProtocol.overrideResponseBody ?? response(for: body)
@@ -225,9 +345,21 @@ private final class MockCognitoURLProtocol: URLProtocol {
                 httpVersion: "HTTP/1.1",
                 headerFields: ["Content-Type": "application/json"]
             )!
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: responseData)
-            client?.urlProtocolDidFinishLoading(self)
+            let complete = { [self] in
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                client?.urlProtocol(self, didLoad: responseData)
+                client?.urlProtocolDidFinishLoading(self)
+            }
+            MockCognitoURLProtocol.lock.lock()
+            MockCognitoURLProtocol.recordedRequests.append(recorded)
+            let hold = MockCognitoURLProtocol.heldFlag
+            if hold {
+                MockCognitoURLProtocol.pendingCompletions.append(complete)
+            }
+            MockCognitoURLProtocol.lock.unlock()
+            if !hold {
+                complete()
+            }
         } catch {
             client?.urlProtocol(self, didFailWithError: error)
         }

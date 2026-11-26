@@ -145,6 +145,9 @@ final class WhoopAuthService {
     private let tokenStore: any TokenStoring
     private let session: URLSession
     private let configuration: WhoopAuthConfiguration
+    private let lock = NSLock()
+    private var generation = 0
+    private var inFlightRefresh: Task<TokenBundle, Error>?
 
     init(
         tokenStore: any TokenStoring,
@@ -172,7 +175,11 @@ final class WhoopAuthService {
 
     func signIn(webCookies: [String: String]) throws -> TokenBundle {
         let bundle = try WhoopWebSession.tokenBundle(from: webCookies)
-        try tokenStore.save(bundle)
+        try withLock {
+            generation += 1
+            inFlightRefresh = nil
+            try tokenStore.save(bundle)
+        }
         AppLog.auth.info("WHOOP web sign-in completed for \(SensitiveTextSanitizer.redact(bundle.email), privacy: .public)")
         return bundle
     }
@@ -189,6 +196,35 @@ final class WhoopAuthService {
 
     @discardableResult
     func refresh() async throws -> TokenBundle {
+        let task = withLock {
+            if let inFlightRefresh {
+                return inFlightRefresh
+            }
+            let startGeneration = generation
+            let task = Task { try await self.performRefresh(startGeneration: startGeneration) }
+            inFlightRefresh = task
+            return task
+        }
+        return try await task.value
+    }
+
+    func disconnect() throws {
+        try withLock {
+            generation += 1
+            inFlightRefresh = nil
+            try tokenStore.delete()
+        }
+    }
+
+    private func performRefresh(startGeneration: Int) async throws -> TokenBundle {
+        defer {
+            withLock {
+                // A sign-in or disconnect already cleared this task and may have started a newer one.
+                if generation == startGeneration {
+                    inFlightRefresh = nil
+                }
+            }
+        }
         guard let current = try tokenStore.load() else {
             throw WhoopAuthError.notAuthenticated
         }
@@ -212,12 +248,19 @@ final class WhoopAuthService {
             auth: auth,
             fallbackRefreshToken: current.refreshToken
         )
-        try tokenStore.save(refreshed)
+        try withLock {
+            guard generation == startGeneration else {
+                throw WhoopAuthError.sessionChanged
+            }
+            try tokenStore.save(refreshed)
+        }
         return refreshed
     }
 
-    func disconnect() throws {
-        try tokenStore.delete()
+    private func withLock<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
     }
 
     private func callCognito<T: Encodable>(target: String, body: T) async throws -> CognitoResponse {
@@ -294,6 +337,7 @@ enum WhoopAuthError: Error, LocalizedError {
     case webSessionMissingRefreshToken
     case webSessionMalformedAccessToken
     case webSessionMissingEmail
+    case sessionChanged
 
     var errorDescription: String? {
         switch self {
@@ -313,6 +357,8 @@ enum WhoopAuthError: Error, LocalizedError {
             return "WHOOP sign-in returned an unreadable access token."
         case .webSessionMissingEmail:
             return "WHOOP sign-in did not provide the account email."
+        case .sessionChanged:
+            return "WHOOP session changed during token refresh."
         }
     }
 }
