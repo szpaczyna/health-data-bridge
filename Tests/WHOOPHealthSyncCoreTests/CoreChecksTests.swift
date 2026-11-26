@@ -753,6 +753,35 @@ final class CoreChecksTests: XCTestCase {
         expect(secondPlan.skippedPointCount == 4, "Second HR sync should account for all buckets as covered.")
     }
 
+    func testHeartRateCloselySpacedOwnSamplesAreNotDeletedOnResync() {
+        let points = [
+            HeartRatePoint(timestamp: date(0), bpm: 60, sourceStepSeconds: 6),
+            HeartRatePoint(timestamp: date(5.999), bpm: 61, sourceStepSeconds: 6),
+            HeartRatePoint(timestamp: date(11.998), bpm: 62, sourceStepSeconds: 6)
+        ]
+
+        let firstPlan = HeartRateCoverageReconciler.plan(points: points, existingSamples: [], stepSeconds: 6)
+        expect(firstPlan.pointsToWrite.count == 3, "First HR sync should write every point.")
+
+        let ownSamplesAfterFirstSync = firstPlan.pointsToWrite.map { point in
+            ExistingHeartRateSample(
+                id: "own-\(SyncIdentifiers.unixMilliseconds(point.timestamp))",
+                range: HeartRateCoverageReconciler.bucket(for: point, stepSeconds: 6, semantics: .bucketStart),
+                bpm: point.bpm,
+                isOwnedByApp: true,
+                syncIdentifier: SyncIdentifiers.heartRate(timestamp: point.timestamp, stepSeconds: 6)
+            )
+        }
+        let secondPlan = HeartRateCoverageReconciler.plan(
+            points: points,
+            existingSamples: ownSamplesAfterFirstSync,
+            stepSeconds: 6
+        )
+        expect(secondPlan.ownSamplesToDelete.isEmpty, "Second HR sync should keep own samples that match a point's bucket.")
+        expect(secondPlan.pointsToWrite.isEmpty, "Second HR sync should be idempotent for closely spaced points.")
+        expect(secondPlan.skippedPointCount == 3, "Second HR sync should count every point as covered.")
+    }
+
     func testWhoopSleepRevisionDeletesOnlyOwnSamplesAndRewritesGaps() throws {
         let revisedSession = try normalizedSession(
             id: "revised-sleep",
@@ -963,6 +992,36 @@ final class CoreChecksTests: XCTestCase {
         expect(base.heartRateDiscardedOutOfWindow == 5, "Merged summary should add out-of-window HR counters.")
         expect(base.effectiveHeartRateResolution == 6, "Merged summary should carry effective HR resolution.")
         expect(base.errors == ["sleep-warning", "hr-warning"], "Merged summary should preserve error order.")
+    }
+
+    func testSleepNormalizerClampsStageOverrunningSession() throws {
+        let session = try normalizedSession(stages: [stage(0, 60, .core), stage(60, 120.001, .deep)])
+        expect(session.stages == [stage(0, 60, .core), stage(60, 120, .deep)], "A stage ending past the session should be clamped to the session end.")
+
+        let early = try normalizedSession(stages: [stage(-0.001, 60, .core)])
+        expect(early.stages == [stage(0, 60, .core)], "A stage starting before the session should be clamped to the session start.")
+    }
+
+    func testSleepNormalizerClampsOverlappingStage() throws {
+        let session = try normalizedSession(stages: [stage(0, 60, .core), stage(59.999, 120, .deep)])
+        expect(session.stages == [stage(0, 60, .core), stage(60, 120, .deep)], "An overlapping stage should start at the previous stage end.")
+    }
+
+    func testSleepNormalizerDropsZeroLengthStage() throws {
+        let session = try normalizedSession(stages: [stage(0, 60, .core), stage(60, 60, .rem), stage(60, 120, .deep)])
+        expect(session.stages == [stage(0, 60, .core), stage(60, 120, .deep)], "A zero-length stage should be dropped.")
+    }
+
+    func testSleepNormalizerThrowsWhenAllStagesAreOutsideSession() {
+        XCTAssertThrowsError(try normalizedSession(stages: [stage(200, 260, .core), stage(-60, -1, .deep)])) { error in
+            XCTAssertEqual(error as? SleepNormalizationError, .noWritableStages)
+        }
+    }
+
+    func testSleepNormalizerThrowsForInvalidSessionBounds() {
+        XCTAssertThrowsError(try normalizedSession(id: "sleep-1", start: 120, end: 120, stages: [stage(0, 60, .core)])) { error in
+            XCTAssertEqual(error as? SleepNormalizationError, .invalidSessionBounds)
+        }
     }
 
     func normalizedSession(stages: [SleepStageInterval]) throws -> SleepSession {

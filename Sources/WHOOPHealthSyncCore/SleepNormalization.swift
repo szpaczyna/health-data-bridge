@@ -2,21 +2,12 @@ import Foundation
 
 public enum SleepNormalizationError: Error, Equatable, CustomStringConvertible {
     case invalidSessionBounds
-    case nonPositiveStage(Date, Date)
-    case stageOutsideSession(Date, Date)
-    case overlappingStages(Date, Date)
     case noWritableStages
 
     public var description: String {
         switch self {
         case .invalidSessionBounds:
             return "Sleep session start must be before end."
-        case let .nonPositiveStage(start, end):
-            return "Sleep stage has non-positive duration: \(start) - \(end)."
-        case let .stageOutsideSession(start, end):
-            return "Sleep stage is outside the parent session: \(start) - \(end)."
-        case let .overlappingStages(start, end):
-            return "Sleep stages overlap around: \(start) - \(end)."
         case .noWritableStages:
             return "Sleep session has no writable REM, core, deep, or awake stages."
         }
@@ -60,23 +51,20 @@ public enum SleepNormalizer {
 
         var normalized: [SleepStageInterval] = []
         for stage in sorted {
-            guard stage.range.hasPositiveDuration else {
-                throw SleepNormalizationError.nonPositiveStage(stage.range.start, stage.range.end)
-            }
-            guard stage.range.start >= session.start && stage.range.end <= session.end else {
-                throw SleepNormalizationError.stageOutsideSession(stage.range.start, stage.range.end)
+            // Throwing on a millisecond overrun or overlap would block the sleep checkpoint permanently.
+            let lowerBound = max(session.start, normalized.last?.range.end ?? session.start)
+            var clamped = stage
+            clamped.range = TimeRange(start: max(stage.range.start, lowerBound), end: min(stage.range.end, session.end))
+            guard clamped.range.hasPositiveDuration else {
+                continue
             }
 
-            if let last = normalized.last {
-                guard stage.range.start >= last.range.end else {
-                    throw SleepNormalizationError.overlappingStages(stage.range.start, last.range.end)
-                }
-                if stage.stage == last.stage && stage.range.start == last.range.end {
-                    normalized[normalized.count - 1].range.end = stage.range.end
-                    continue
-                }
+            if let last = normalized.last,
+               clamped.stage == last.stage && clamped.range.start == last.range.end {
+                normalized[normalized.count - 1].range.end = clamped.range.end
+                continue
             }
-            normalized.append(stage)
+            normalized.append(clamped)
         }
 
         guard !normalized.isEmpty else {
