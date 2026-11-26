@@ -5,10 +5,10 @@ Date: November 26, 2026. Base commit: `a90995d5bf5d1a30ca1befb9bc4dbcc3c2299d05`
 0.4.0 and `CURRENT_PROJECT_VERSION` 8. Previous release: 0.3.1 (7), tag `0.3.1` at
 `48e0b2e`.
 
-Status: release candidate built from source. Automated checks passed; physical
-acceptance is pending. An omission does not count as approval. No real WHOOP account
-was contacted, this candidate was not installed on a physical iPhone, and no IPA,
-TestFlight or App Store build was published.
+Status: release built from source. Automated checks passed. The maintainer installed
+0.4.0 (8) from Xcode on an iPhone 17 running iOS 27.3 and reported a successful basic
+test (see "Reproduction and physical acceptance"). An omission does not count as
+approval. No IPA, TestFlight or App Store build was published.
 
 Version drift: before this release the Xcode project declared 0.3.1 (7), while
 README.md and VALIDATION_0.3.md described the candidate as 0.3.0 (7). 0.4.0 continues
@@ -122,7 +122,9 @@ xcodebuild -quiet -project iOS/WHOOPHealthSync.xcodeproj -scheme WHOOPHealthSync
   -derivedDataPath /tmp/hdb-dd-R CODE_SIGNING_ALLOWED=NO build
 ```
 
-The following checks were **not executed** for this candidate:
+Physical acceptance: the maintainer installed 0.4.0 (8) from Xcode on an iPhone 17
+running iOS 27.3 and reported a successful basic test. The report does not list
+individual cases, so each check below remains unconfirmed on its own:
 
 - HealthKit predicates on a device: the other-source read guard (finding 3), the
   WHOOP sleep ID stage query (finding 4) and the HRV read access query.
