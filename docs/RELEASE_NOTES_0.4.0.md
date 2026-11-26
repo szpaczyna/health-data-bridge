@@ -1,12 +1,11 @@
-# HealthDataBridge 0.4.0 (1) release notes
+# HealthDataBridge 0.4.0 (8) release notes
 
-These notes cover every change in this fork (szpaczyna/health-data-bridge) since it split from upstream xoselourido/health-data-bridge at `0f95b07` ("Keep incomplete sync phases partial and revalidate 0.3 candidate"). The range `0f95b07..0.4.0` holds PRs #1 to #33 and three direct commits. Validation evidence for this release is in [VALIDATION_0.4.md](VALIDATION_0.4.md).
+These notes cover every change in this fork (szpaczyna/health-data-bridge) since it split from upstream xoselourido/health-data-bridge at `0f95b07` ("Keep incomplete sync phases partial and revalidate 0.3 candidate"). The range `0f95b07..0.4.0` holds PRs #1 to #34 and three direct commits. Validation evidence for this release is in [VALIDATION_0.4.md](VALIDATION_0.4.md).
 
 ## Before you install
 
 - The bundle identifier is `org.shpaq.WHOOPHealthSync` and the signing team changed. iOS treats this build as a different app from an upstream install: it starts with an empty sync store, needs a new WHOOP sign-in and new Health permissions. Samples the upstream app wrote stay in Apple Health under that app's source, and this app does not own or reconcile them.
 - The app and test targets require iOS 27.0. Mac (Designed for iPad), Vision Pro and Mac Catalyst destinations are off.
-- The build number is 1, lower than 0.3.1 (7). Installs from Xcode over 0.3.1 keep the same bundle identifier; check your install path if it compares build numbers.
 - There is no background refresh. Shortcut automations remain the only scheduled sync.
 
 ## Changes in 0.4.0 (since 0.3.1)

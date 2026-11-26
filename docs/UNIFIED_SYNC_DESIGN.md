@@ -68,7 +68,7 @@ reconciliation remain intact. There is no autonomous background scheduler.
 ## Acceptance evidence
 
 This design was implemented in 0.3.1 (7), which VALIDATION_0.3.md describes as
-0.3.0 (7), and revised in candidate 0.4.0 (1). Neither is a claim of a newly
+0.3.0 (7), and revised in candidate 0.4.0 (8). Neither is a claim of a newly
 installed or physically accepted release. The normative September 15 specification
 takes precedence over the initial local design. See VALIDATION_0.3.md and
 VALIDATION_0.4.md for actual results.
