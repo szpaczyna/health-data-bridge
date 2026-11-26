@@ -6,9 +6,10 @@ struct WhoopLoginWebView: UIViewRepresentable {
     static let loginURL = URL(string: "https://app.whoop.com")!
 
     let onSession: ([String: String]) -> Void
+    var onLoadFailure: () -> Void = {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onSession: onSession)
+        Coordinator(onSession: onSession, onLoadFailure: onLoadFailure)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -30,11 +31,13 @@ struct WhoopLoginWebView: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKHTTPCookieStoreObserver {
         private let onSession: ([String: String]) -> Void
+        private let onLoadFailure: () -> Void
         private var cookieStore: WKHTTPCookieStore?
         private var didDeliver = false
 
-        init(onSession: @escaping ([String: String]) -> Void) {
+        init(onSession: @escaping ([String: String]) -> Void, onLoadFailure: @escaping () -> Void) {
             self.onSession = onSession
+            self.onLoadFailure = onLoadFailure
         }
 
         func startObserving(_ store: WKHTTPCookieStore) {
@@ -49,6 +52,21 @@ struct WhoopLoginWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             readCookies(in: webView.configuration.websiteDataStore.httpCookieStore)
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            reportLoadFailure(error)
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            reportLoadFailure(error)
+        }
+
+        private func reportLoadFailure(_ error: Error) {
+            let error = error as NSError
+            // WebKit reports a superseded navigation as cancelled; the newer navigation is still loading.
+            if error.domain == NSURLErrorDomain, error.code == NSURLErrorCancelled { return }
+            onLoadFailure()
         }
 
         func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
@@ -88,6 +106,7 @@ import SwiftUI
 
 struct WhoopLoginWebView: View {
     let onSession: ([String: String]) -> Void
+    var onLoadFailure: () -> Void = {}
 
     var body: some View { EmptyView() }
 }

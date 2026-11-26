@@ -251,3 +251,6 @@
 "pending/with issues" = "pendiente/con incidencias";
 "Read-only diagnostic. It does not write to Health or change sync progress. The private hrv_rmssd field is in seconds and is shown in ms (×1000)." = "Diagnóstico de solo lectura. No escribe en Salud ni cambia el progreso de la sincronización. El campo privado hrv_rmssd está en segundos y se muestra en ms (×1000).";
 "Last seven days" = "Últimos siete días";
+"Could not load the WHOOP sign-in page. Check your connection and retry." = "No se pudo cargar la página de inicio de sesión de WHOOP. Revisa la conexión y reinténtalo.";
+"Retry" = "Reintentar";
+"Version" = "Versión";
