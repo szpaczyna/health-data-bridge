@@ -73,10 +73,6 @@ final class LiveSyncRuntime {
         return RecoveryAuthorization(sources: sources, access: access, writeAuthorized: writeAuthorized)
     }
 
-    func authorizeSyncData(includeRecovery: Bool) async throws -> RecoveryAuthorization? {
-        try await authorizeSelectedData(includeRecovery: includeRecovery).recovery
-    }
-
     func authorizeSelectedData(includeRecovery: Bool) async throws -> SyncDataAuthorization {
         try acquireSyncLock(); defer { releaseSyncLock() }
         try repository.ensureUsable()
@@ -117,34 +113,6 @@ final class LiveSyncRuntime {
         try Task.checkCancellation()
         guard case let .authenticated(current) = authService.currentStatus(), current == email else { throw RecoverySyncError.accountMismatch }
         try repository.saveSyncSetup(recovery: state, accountKey: key)
-    }
-    func configureRecovery(start: Date, fullReadConfirmed: Bool, whoopBundle: String?) async throws {
-        try acquireSyncLock(); defer { releaseSyncLock() }
-        guard case let .authenticated(email) = authService.currentStatus() else { throw AutomatedSyncError.whoopNotConnected }
-        let user = try await api.fetchCurrentUser()
-        let key = WhoopRecovery.pseudonymousAccountKey(userID: user.id)
-        try repository.validateAccount(key)
-        guard case let .authenticated(current) = authService.currentStatus(), current == email else { throw RecoverySyncError.accountMismatch }
-        guard start < Date(), HKRecoverySetup.validBundle(whoopBundle) else { throw RecoverySyncError.invalidRecord }
-        let setupAdapter = HealthKitRecoveryAdapter(manualConfirmation: { fullReadConfirmed }, officialBundle: { whoopBundle })
-        try setupAdapter.validateWriteAuthorization()
-        let access = try await setupAdapter.readAccess()
-        guard access != .unknown else { throw RecoverySyncError.readUnverified }
-        guard case let .authenticated(afterAuthorization) = authService.currentStatus(), afterAuthorization == email else { throw RecoverySyncError.accountMismatch }
-        var state = try repository.recoveryState()
-        if state.historyStartDate != start {
-            state.historicalCursor = nil; state.initialEnumerationComplete = false; state.historicalPagesConfirmed = 0
-            state.confirmedCursorFingerprints = []; state.initialImportCutoff = nil
-        }
-        state.accountKey = key; state.historyStartDate = start
-        state.userConfirmedFullReadAccess = fullReadConfirmed; state.officialWhoopBundle = whoopBundle
-        state.historyScopeLimited = true; state.pausedForNativeExport = false
-        state.enabled = true; state.configured = true
-        try repository.commitRecoveryState(state)
-        if case let .nativeExporter(bundle) = access {
-            state.officialWhoopBundle = bundle; state.pausedForNativeExport = true
-            try repository.commitRecoveryState(state)
-        }
     }
 
     func requestHealthKitAuthorization() async throws {
@@ -223,28 +191,6 @@ final class LiveSyncRuntime {
 
     func probeRecoveryValues() async throws -> String {
         try await api.probeRecoveryValues()
-    }
-
-    func importRecoveryHistory() async throws -> SyncSummary {
-        try acquireSyncLock(); defer { releaseSyncLock() }
-        let started = Date()
-        let user = try await api.fetchCurrentUser()
-        let key = WhoopRecovery.pseudonymousAccountKey(userID: user.id)
-        try repository.validateAccount(key)
-        let run = try repository.createRejectedRun(startedAt: started)
-        var summary = SyncSummary()
-        do {
-            summary.recovery = try await recoveryPipeline.run(accountKey: key, mode: .history, maxPages: Int.max)
-            summary.elapsedSeconds = Date().timeIntervalSince(started)
-            try repository.finishRun(run, summary: summary, status: .success)
-            return summary
-        } catch {
-            summary.recovery = recoveryPipeline.lastSummary; summary.recovery.status = .issues
-            summary.elapsedSeconds = Date().timeIntervalSince(started)
-            summary.errors = [SensitiveTextSanitizer.redact(error.localizedDescription)]
-            try? repository.finishRun(run, summary: summary, status: error is CancellationError ? .cancelled : .failed)
-            throw error
-        }
     }
 
     func bindCurrentAccountManually() async throws {

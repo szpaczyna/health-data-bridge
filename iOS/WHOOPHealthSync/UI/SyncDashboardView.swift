@@ -220,43 +220,16 @@ struct SyncDashboardView: View {
                 if let date = viewModel.diagnostics.lastRunFinishedAt ?? viewModel.diagnostics.lastRunStartedAt {
                     Text(dateValue(date))
                         .monospacedDigit()
-                    Text(lastRunStatus)
+                    let status = viewModel.diagnostics.lastRunStatus ?? .unknown
+                    Text(LocalizedStringKey(status.labelKey))
                         .font(.caption)
-                        .foregroundStyle(lastRunStatusColor)
+                        .foregroundStyle(status.color)
                 } else {
                     Text("Never")
                         .foregroundStyle(.secondary)
                 }
             }
             .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
-        }
-    }
-
-    private var lastRunStatus: LocalizedStringKey {
-        switch viewModel.diagnostics.lastRunStatus {
-        case .success:
-            return "Completed"
-        case .partial:
-            return "Completed with issues"
-        case .failed:
-            return "Failed"
-        case .running:
-            return "In progress"
-        default:
-            return "Unknown"
-        }
-    }
-
-    private var lastRunStatusColor: Color {
-        switch viewModel.diagnostics.lastRunStatus {
-        case .success:
-            return .green
-        case .partial:
-            return .orange
-        case .failed:
-            return .red
-        default:
-            return .secondary
         }
     }
 
@@ -293,6 +266,28 @@ struct SyncDashboardView: View {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+}
+
+extension SyncRunStatus {
+    var labelKey: String {
+        switch self {
+        case .success: return "Completed"
+        case .partial: return "Completed with issues"
+        case .failed: return "Failed"
+        case .running: return "In progress"
+        case .cancelled: return "Cancelled"
+        case .unknown: return "Unknown"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .success: return .green
+        case .partial: return .orange
+        case .failed: return .red
+        case .running, .cancelled, .unknown: return .secondary
+        }
     }
 }
 

@@ -1,13 +1,12 @@
 "Activity" = "Activity";
 "Activity and diagnostics" = "Activity and diagnostics";
-"Adds only missing sleep stages and heart rate samples, without replacing data from other sources." = "Adds only missing sleep stages and heart rate samples, without replacing data from other sources.";
 "App language" = "App language";
 "Automatic" = "Automatic";
 "Automatic uses Spanish when the iPhone is set to Spanish, Polish when set to Polish, and English for every other language." = "Automatic uses Spanish when the iPhone is set to Spanish, Polish when set to Polish, and English for every other language.";
 "Automation" = "Automation";
-"Authorize WHOOP and Apple Health once; then sync here or from Shortcuts." = "Authorize WHOOP and Apple Health once; then sync here or from Shortcuts.";
 "Available in Shortcuts" = "Available in Shortcuts";
 "Cancel" = "Cancel";
+"Cancelled" = "Cancelled";
 "Completed" = "Completed";
 "Completed with issues" = "Completed with issues";
 "Connect" = "Connect";
@@ -52,7 +51,6 @@
 "Never" = "Never";
 "Next heart-rate window" = "Next heart-rate window";
 "Next sleep review window" = "Next sleep review window";
-"Not connected" = "Not connected";
 "Opens the WHOOP sign-in flow" = "Opens the WHOOP sign-in flow";
 "Open Shortcuts on your iPhone to add the Sync WHOOP action." = "Open Shortcuts on your iPhone to add the Sync WHOOP action.";
 "Open Shortcuts to add the Sync WHOOP action or include it in a personal automation." = "Open Shortcuts to add the Sync WHOOP action or include it in a personal automation.";
@@ -60,7 +58,6 @@
 "Polish" = "Polish";
 "Ready to sync" = "Ready to sync";
 "Reconnect" = "Reconnect";
-"Reconnect required" = "Reconnect required";
 "Recorded sleeps" = "Recorded sleeps";
 "Result" = "Result";
 "Run the same sync from Siri or a personal automation. Your account and HealthKit must first be authorized in this app." = "Run the same sync from Siri or a personal automation. Your account and HealthKit must first be authorized in this app.";
@@ -79,7 +76,6 @@
 "Stages removed" = "Stages removed";
 "Stages skipped" = "Stages skipped";
 "Stages written" = "Stages written";
-"Status" = "Status";
 "Sync" = "Sync";
 "Sync in progress" = "Sync in progress";
 "Sync now" = "Sync now";
@@ -99,11 +95,6 @@
 "Configuration pending" = "Configuration pending";
 "Paused: WHOOP already exports HRV" = "Paused: WHOOP already exports HRV";
 "History pending continuation" = "History pending continuation";
-"Completes recovery HRV WHOOP does not send to Health. The first import covers all available history; subsequent syncs include new data and the last seven days. Values are associated with sleep, with no daytime readings generated." = "Completes recovery HRV WHOOP does not send to Health. The first import covers all available history; subsequent syncs include new data and the last seven days. Values are associated with sleep, with no daytime readings generated.";
-"Activation requires validation of the WHOOP recovery contract and historical HealthKit writes with SDK 27. This development build keeps recovery HRV disabled." = "Activation requires validation of the WHOOP recovery contract and historical HealthKit writes with SDK 27. This development build keeps recovery HRV disabled.";
-"Import all available history" = "Import all available history";
-"Recovery validation is pending" = "Recovery validation is pending";
-"Disable recovery HRV" = "Disable recovery HRV";
 "Recovery HRV written" = "Recovery HRV written";
 "Recovery HRV skipped" = "Recovery HRV skipped";
 "Recovery history pages" = "Recovery history pages";
@@ -129,23 +120,18 @@
 "Recovery value probe could not complete; retry. No health data was written." = "Recovery value probe could not complete; retry. No health data was written.";
 
 "Imports the HRV measured during the main sleep, not the WHOOP recovery percentage. Subsequent syncs review the last seven days. No daytime readings are generated." = "Imports the HRV measured during the main sleep, not the WHOOP recovery percentage. Subsequent syncs review the last seven days. No daytime readings are generated.";
-"Configure recovery HRV" = "Configure recovery HRV";
 "Import indicated history" = "Import indicated history";
 "Stop import" = "Stop import";
 "WHOOP history starts" = "WHOOP history starts";
-"Select when you started using WHOOP. Completion applies to the indicated period; it does not certify the end of the provider's history." = "Select when you started using WHOOP. Completion applies to the indicated period; it does not certify the end of the provider's history.";
 "Health access" = "Health access";
-"Authorize recovery HRV" = "Authorize recovery HRV";
 "Health reading is limited from" = "Health reading is limited from";
 "Older recoveries remain pending until reading covers their sleep dates." = "Older recoveries remain pending until reading covers their sleep dates.";
-"WHOOP already writes recovery HRV to Health. Import remains paused to avoid duplicates." = "WHOOP already writes recovery HRV to Health. Import remains paused to avoid duplicates.";
 "WHOOP source in Health" = "WHOOP source in Health";
 "Not identified" = "Not identified";
 "I checked that WHOOP does not already write recovery HRV to Health" = "I checked that WHOOP does not already write recovery HRV to Health";
 "Health does not reveal denied reading when only this app's data or no data is visible. Check that recovery HRV reading is allowed for all dates in Health before enabling import." = "Health does not reveal denied reading when only this app's data or no data is visible. Check that recovery HRV reading is allowed for all dates in Health before enabling import.";
 "I allowed recovery HRV reading for all dates" = "I allowed recovery HRV reading for all dates";
 "Confirm the account for saved sync progress in Options before enabling recovery HRV." = "Confirm the account for saved sync progress in Options before enabling recovery HRV.";
-"Enable recovery HRV" = "Enable recovery HRV";
 "Indicated history imported" = "Indicated history imported";
 "Partial history: Health access pending" = "Partial history: Health access pending";
 "History pending manual review" = "History pending manual review";
@@ -263,9 +249,5 @@
 "requires iOS 27" = "requires iOS 27";
 "completed" = "completed";
 "pending/with issues" = "pending/with issues";
-"with issues" = "with issues";
-"failed" = "failed";
-"in progress" = "in progress";
-"unknown" = "unknown";
 "Read-only diagnostic. It does not write to Health or change sync progress. The private hrv_rmssd field is in seconds and is shown in ms (×1000)." = "Read-only diagnostic. It does not write to Health or change sync progress. The private hrv_rmssd field is in seconds and is shown in ms (×1000).";
 "Last seven days" = "Last seven days";

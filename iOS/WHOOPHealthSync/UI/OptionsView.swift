@@ -61,7 +61,7 @@ struct OptionsView: View {
                         .disabled(!viewModel.canImportHistory)
                         .accessibilityIdentifier("history.resume")
                 }
-                if viewModel.isSyncing {
+                if viewModel.isImportingHistory {
                     ProgressView()
                     LabeledContent("Recovery history pages", value: "\(viewModel.recoveryProgress.pagesConfirmed)")
                     LabeledContent("Recovery HRV written", value: "\(viewModel.recoveryProgress.written)")
@@ -355,7 +355,7 @@ struct SyncActivityView: View {
         List {
             if !viewModel.errors.isEmpty {
                 Section("Current issues") {
-                    ForEach(viewModel.errors, id: \.self) { error in
+                    ForEach(Array(viewModel.errors.enumerated()), id: \.offset) { _, error in
                         Text(error)
                             .foregroundStyle(.red)
                     }
@@ -434,7 +434,7 @@ struct SyncActivityView: View {
 
             if !viewModel.events.isEmpty {
                 Section("This session") {
-                    ForEach(viewModel.events, id: \.self) { event in
+                    ForEach(Array(viewModel.events.enumerated()), id: \.offset) { _, event in
                         Text(event)
                             .font(.footnote)
                     }
@@ -477,7 +477,7 @@ struct SyncActivityView: View {
         guard let startedAt = viewModel.diagnostics.lastRunStartedAt else {
             return "-"
         }
-        let status = localizedStatus(viewModel.diagnostics.lastRunStatus)
+        let status = AppLocalization.string(String.LocalizationValue((viewModel.diagnostics.lastRunStatus ?? .unknown).labelKey), locale: locale)
         if let finishedAt = viewModel.diagnostics.lastRunFinishedAt {
             return "\(status), \(dateValue(startedAt)) → \(dateValue(finishedAt))"
         }
@@ -530,21 +530,6 @@ struct SyncActivityView: View {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
-    }
-
-    private func localizedStatus(_ status: SyncRunStatus?) -> String {
-        switch status {
-        case .success:
-            return AppLocalization.string("completed", locale: locale)
-        case .partial:
-            return AppLocalization.string("with issues", locale: locale)
-        case .failed:
-            return AppLocalization.string("failed", locale: locale)
-        case .running:
-            return AppLocalization.string("in progress", locale: locale)
-        default:
-            return AppLocalization.string("unknown", locale: locale)
-        }
     }
 
     private func copyDiagnostics() {
