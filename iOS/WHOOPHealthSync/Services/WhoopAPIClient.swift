@@ -203,6 +203,7 @@ actor WhoopAPIClient {
     func fetchHeartRate(userID: String, start: Date, end: Date, stepSeconds: Int) async throws -> [HeartRatePoint] {
         let json = try await getJSON(
             path: "/metrics-service/v1/metrics/user/\(userID)",
+            route: "/metrics-service/v1/metrics/user/{id}",
             query: [
                 "start": Self.isoString(start),
                 "end": Self.isoString(end),
@@ -213,19 +214,22 @@ actor WhoopAPIClient {
         return try WhoopPayloadAdapters.heartRatePoints(fromJSON: json, stepSeconds: stepSeconds)
     }
 
-    private func getJSON(path: String, query: [String: String], allowRefresh: Bool = true, recoveryRequest: Bool = false) async throws -> Any {
+    /// `route` names the request in logs and errors; only `makeRequest` sees `path`, which may hold the user ID.
+    private func getJSON(path: String, route: String? = nil, query: [String: String], allowRefresh: Bool = true, recoveryRequest: Bool = false) async throws -> Any {
+        let route = route ?? path
         var attempt = 0
 
         while true {
             try Task.checkCancellation()
             if attempt == 0 {
-                try await respectRetryAfter()
+                try await respectRetryAfter(route: route, recoveryRequest: recoveryRequest)
             }
             try await budget.acquire()
 
             do {
                 let data = try await performRequest(
                     path: path,
+                    route: route,
                     query: query,
                     allowRefresh: allowRefresh,
                     recoveryRequest: recoveryRequest
@@ -242,6 +246,9 @@ actor WhoopAPIClient {
                     arrivedAt: failure.arrivedAt,
                     policy: retryPolicy
                 )
+                guard delay <= retryPolicy.maxDelay else {
+                    throw Self.rateLimitTooLong(route: route)
+                }
                 AppLog.api.warning("WHOOP request returned \(failure.status, privacy: .public); retrying in \(delay, privacy: .public)s (attempt \(attempt + 1, privacy: .public)/\(maxRetries, privacy: .public)).")
                 try await retryPolicy.sleep(delay)
                 attempt += 1
@@ -249,7 +256,7 @@ actor WhoopAPIClient {
         }
     }
 
-    private func performRequest(path: String, query: [String: String], allowRefresh: Bool, recoveryRequest: Bool) async throws -> Data {
+    private func performRequest(path: String, route: String, query: [String: String], allowRefresh: Bool, recoveryRequest: Bool) async throws -> Data {
         let token = try await auth.validAccessToken()
         var request = try makeRequest(path: path, query: query, token: token)
 
@@ -260,7 +267,7 @@ actor WhoopAPIClient {
             throw WhoopAPIError.invalidHTTPResponse
         }
         updateRateLimit(from: http)
-        AppLog.api.info("GET \(path, privacy: .public) status=\(http.statusCode) elapsed=\(elapsed, privacy: .public)")
+        AppLog.api.info("GET \(route, privacy: .public) status=\(http.statusCode) elapsed=\(elapsed, privacy: .public)")
 
         if Self.shouldRefreshAccessToken(afterStatus: http.statusCode), allowRefresh {
             AppLog.api.warning("WHOOP request returned \(http.statusCode, privacy: .public); refreshing token once.")
@@ -271,19 +278,19 @@ actor WhoopAPIClient {
                 throw WhoopAPIError.invalidHTTPResponse
             }
             updateRateLimit(from: retryHTTP)
-            return try finalizeResponse(data: retryData, response: retryHTTP, path: path, recoveryRequest: recoveryRequest)
+            return try finalizeResponse(data: retryData, response: retryHTTP, route: route, recoveryRequest: recoveryRequest)
         }
 
-        return try finalizeResponse(data: data, response: http, path: path, recoveryRequest: recoveryRequest)
+        return try finalizeResponse(data: data, response: http, route: route, recoveryRequest: recoveryRequest)
     }
 
-    private func finalizeResponse(data: Data, response http: HTTPURLResponse, path: String, recoveryRequest: Bool) throws -> Data {
+    private func finalizeResponse(data: Data, response http: HTTPURLResponse, route: String, recoveryRequest: Bool) throws -> Data {
         if http.statusCode == 429 {
             if recoveryRequest {
                 throw recoveryRateLimit(http)
             }
             throw TransportFailure(
-                error: WhoopAPIError.http(status: 429, path: path, message: Self.sanitizedMessage(from: data)),
+                error: WhoopAPIError.http(status: 429, path: route, message: Self.sanitizedMessage(from: data)),
                 status: 429,
                 resetSeconds: rateLimit?.resetSeconds,
                 arrivedAt: rateLimit?.arrivedAt
@@ -291,31 +298,44 @@ actor WhoopAPIClient {
         }
         if (500...599).contains(http.statusCode) {
             throw TransportFailure(
-                error: WhoopAPIError.http(status: http.statusCode, path: path, message: Self.sanitizedMessage(from: data)),
+                error: WhoopAPIError.http(status: http.statusCode, path: route, message: Self.sanitizedMessage(from: data)),
                 status: http.statusCode,
                 resetSeconds: nil,
                 arrivedAt: nil
             )
         }
         guard (200..<300).contains(http.statusCode) else {
-            throw WhoopAPIError.http(status: http.statusCode, path: path, message: Self.sanitizedMessage(from: data))
+            throw WhoopAPIError.http(status: http.statusCode, path: route, message: Self.sanitizedMessage(from: data))
         }
         return data
     }
 
-    private func respectRetryAfter() async throws {
+    private func respectRetryAfter(route: String, recoveryRequest: Bool) async throws {
         guard let state = rateLimit,
               state.remaining == 0,
               let reset = state.resetSeconds,
               reset > 0 else { return }
-        try await retryPolicy.sleep(RateLimitBackoff.resetDelay(resetSeconds: reset, arrivedAt: state.arrivedAt))
+        let delay = RateLimitBackoff.resetDelay(resetSeconds: reset, arrivedAt: state.arrivedAt)
+        guard delay <= retryPolicy.maxDelay else {
+            if recoveryRequest {
+                let until = Date().addingTimeInterval(delay)
+                recoveryRetryNotBefore = until
+                throw RecoverySyncError.rateLimited(until: until)
+            }
+            throw Self.rateLimitTooLong(route: route)
+        }
+        try await retryPolicy.sleep(delay)
+    }
+
+    private static func rateLimitTooLong(route: String) -> WhoopAPIError {
+        .http(status: 429, path: route, message: "rate limit reset is longer than the retry delay cap")
     }
 
     private func updateRateLimit(from response: HTTPURLResponse) {
         let limit = response.value(forHTTPHeaderField: "x-ratelimit-limit").flatMap(Self.parseLimit)
         let remaining = response.value(forHTTPHeaderField: "x-ratelimit-remaining").flatMap(Int.init)
         let reset = response.value(forHTTPHeaderField: "x-ratelimit-reset").flatMap { value in
-            Int(ceil(Double(value) ?? 0))
+            Double(value).map { $0.rounded(.up) }.flatMap { Int(exactly: $0) }
         }
         rateLimit = RateLimitState(
             limit: limit,

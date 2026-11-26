@@ -146,7 +146,60 @@ struct WhoopAPISmokeCheck {
             expect(!message.contains("header.payload.signature"), "WHOOP API errors should redact JWT-like values at the client boundary.")
             expect(message.contains("[redacted-email]"), "WHOOP API errors should include the email redaction marker.")
             expect(message.contains("Bearer [redacted-token]"), "WHOOP API errors should include the bearer redaction marker.")
+            expect(!message.contains("98765"), "WHOOP API errors must not include the WHOOP user ID from the HR route.")
         }
+        MockWhoopURLProtocol.heartRateStatusCode = 200
+        expect(
+            SensitiveTextSanitizer.redact("GET /metrics-service/v1/metrics/user/12345678 failed") == "GET /metrics-service/v1/metrics/user/[redacted-id] failed",
+            "Sanitizer should redact numeric user IDs in paths."
+        )
+
+        var recordedSleeps: [TimeInterval] = []
+        let recordingPolicy = WhoopAPIClient.RetryPolicy(maxRetries: 3, baseDelay: 0.5, maxDelay: 30, sleep: { recordedSleeps.append($0) })
+
+        MockWhoopURLProtocol.userStatusCode = 429
+        MockWhoopURLProtocol.rateLimitHeaders = ["x-ratelimit-reset": "inf"]
+        do {
+            _ = try await WhoopAPIClient(auth: auth, session: session, retryPolicy: recordingPolicy).fetchCurrentUser()
+            fatalError("429 with a non-finite reset header should throw.")
+        } catch let WhoopAPIError.http(status, _, _) {
+            expect(status == 429, "Non-finite reset header should surface as 429.")
+        }
+
+        recordedSleeps.removeAll()
+        MockWhoopURLProtocol.rateLimitHeaders = ["x-ratelimit-remaining": "0", "x-ratelimit-reset": "80000"]
+        let longResetClient = WhoopAPIClient(auth: auth, session: session, retryPolicy: recordingPolicy)
+        for _ in 0..<2 {
+            do {
+                _ = try await longResetClient.fetchCurrentUser()
+                fatalError("429 with a reset beyond maxDelay should throw.")
+            } catch let WhoopAPIError.http(status, path, _) {
+                expect(status == 429, "Reset beyond maxDelay should surface as 429.")
+                expect(path == "/auth-service/v2/user", "Long-reset 429 should name the route.")
+            }
+        }
+        expect(recordedSleeps.allSatisfy { $0 <= 30 }, "Client must never sleep past RetryPolicy.maxDelay.")
+        MockWhoopURLProtocol.userStatusCode = 200
+
+        recordedSleeps.removeAll()
+        let exhaustedClient = WhoopAPIClient(auth: auth, session: session, retryPolicy: recordingPolicy)
+        _ = try await exhaustedClient.fetchCurrentUser()
+        let exhaustedAt = Date()
+        do {
+            _ = try await exhaustedClient.fetchRecoveryCycleRecords(userID: user.id, window: TimeRange(start: start, end: end))
+            fatalError("An exhausted budget with a long reset must defer recovery.")
+        } catch let RecoverySyncError.rateLimited(date) {
+            expect(date.timeIntervalSince(exhaustedAt) >= 79_990, "Recovery deferral should last until the rate limit reset.")
+        }
+        expect(recordedSleeps.allSatisfy { $0 <= 30 }, "Recovery fetch must never sleep past RetryPolicy.maxDelay.")
+        MockWhoopURLProtocol.rateLimitHeaders = [:]
+
+        MockWhoopURLProtocol.userBody = ["user": ["id": 1e19]]
+        do {
+            _ = try await client.fetchCurrentUser()
+            fatalError("A user ID beyond Int64 should throw.")
+        } catch is WhoopPayloadError {}
+        MockWhoopURLProtocol.userBody = nil
 
         MockWhoopURLProtocol.clearRequests()
         MockWhoopURLProtocol.cyclesReturnsEmpty = true
@@ -241,6 +294,9 @@ private final class MockWhoopURLProtocol: URLProtocol {
     static var deepDiveSleepStatusCode = 200
     static var heartRateStatusCode = 200
     static var heartRateErrorBody: [String: Any] = ["error": "heart-rate unavailable"]
+    static var userStatusCode = 200
+    static var userBody: [String: Any]?
+    static var rateLimitHeaders: [String: String] = [:]
     private static var staleUserRequestCount = 0
     private static var staleUserStatusCode = 401
 
@@ -301,7 +357,7 @@ private final class MockWhoopURLProtocol: URLProtocol {
                 url: url,
                 statusCode: response.status,
                 httpVersion: "HTTP/1.1",
-                headerFields: ["Content-Type": "application/json"].merging(Self.retryAfter.map { ["Retry-After": $0] } ?? [:]) { _, new in new }
+                headerFields: ["Content-Type": "application/json"].merging(Self.retryAfter.map { ["Retry-After": $0] } ?? [:]) { _, new in new }.merging(Self.rateLimitHeaders) { _, new in new }
             )!
             client?.urlProtocol(self, didReceive: http, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: responseData)
@@ -334,7 +390,8 @@ private final class MockWhoopURLProtocol: URLProtocol {
                 Self.staleUserRequestCount += 1
                 return (Self.staleUserStatusCode, ["error": "expired"])
             }
-            return (200, ["user": ["id": 98_765]])
+            if Self.userStatusCode != 200 { return (Self.userStatusCode, ["error": "rate-limited"]) }
+            return (200, Self.userBody ?? ["user": ["id": 98_765]])
         }
 
         if request.path == "/core-details-bff/v0/cycles/details" {

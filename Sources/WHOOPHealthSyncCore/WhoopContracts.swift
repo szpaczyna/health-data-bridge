@@ -524,7 +524,7 @@ public enum WhoopPayloadAdapters {
         case let value as Int64:
             return String(value)
         case let value as Double where value.rounded() == value:
-            return String(Int64(value))
+            return Int64(exactly: value).map { String($0) }
         default:
             return nil
         }

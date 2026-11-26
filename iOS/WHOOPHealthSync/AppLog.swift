@@ -37,6 +37,7 @@ enum SensitiveTextSanitizer {
         var output = text
         let replacements: [(pattern: String, replacement: String)] = [
             (#"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#, "[redacted-email]"),
+            (#"/user/\d+"#, "/user/[redacted-id]"),
             (#"\bauthorization\s*[:=]\s*Bearer\s+[A-Za-z0-9._\-]+"#, "Authorization: Bearer [redacted-token]"),
             (#"Bearer\s+[A-Za-z0-9._\-]+"#, "Bearer [redacted-token]"),
             (#"\bauthorization\s*[:=]\s*Basic\s+[A-Za-z0-9._~+/\-=]+"#, "Authorization: Basic [redacted-token]"),
