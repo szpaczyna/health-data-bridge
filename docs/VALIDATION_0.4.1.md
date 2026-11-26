@@ -5,9 +5,9 @@ Date: November 26, 2026. Base commit: `d4af83202cd4d26053167c25a4f7308d9e3449bb`
 0.4.1 and `CURRENT_PROJECT_VERSION` 9. Previous release: 0.4.0 (8), tag `0.4.0` at
 `6d327ca`.
 
-Status: release built from source. Automated checks passed. No device check of
-0.4.1 (9) has been reported; the device checks below are not executed. No IPA,
-TestFlight or App Store build was published.
+Status: release built from source. Automated checks passed. The maintainer reported
+two device observations on the iPhone 17 (see "Device checks"); the other device
+checks are not executed. No IPA, TestFlight or App Store build was published.
 
 ## Evidence executed
 
@@ -40,15 +40,24 @@ relied on local runs of `swift test --jobs 2`, `scripts/verify_local.sh` and, fo
 | Recovery `Retry-After` capped at 24 hours in the client | #40 | E02 API smoke: one-year `Retry-After` as seconds and as an HTTP date defers 24 hours (±5 s); `120` stays about 120 s | Real WHOOP rate limits |
 | Stored far-future recovery deadline capped on read and save | #40 | E01: `testFarFutureRetryDeadlineIsCappedAtTwentyFourHours` | None locally |
 | Sign-in page load failure shows a message and Retry | #41 | Compile only (E02/E03); E02 localization key parity | Retry with the phone offline: not executed |
-| Version row in Options > About | #41 | Compile only (E03); E02 localization key parity | Version row on device: not executed |
+| Version row in Options > About | #41 | Compile only (E03); E02 localization key parity | Device: maintainer reported the row in About (English UI) |
 | `scripts/install_on_device.sh` | #38 | `shellcheck` and `bash -n` in PR #38; not rerun for this report | The PR author installed 0.4.0 (8) with it |
 | 0.4.0 device-check records | #35 to #37 | E02 (docs only) | Not applicable |
 
-## Device checks not executed for 0.4.1
+## Device checks
+
+The maintainer reported these on the iPhone 17 with iOS 27.3, English UI:
+
+- Options > About shows the Version row. The displayed value was not reported.
+- Sync with the phone offline fails without finishing. The result reads "Partial
+  result; review pending data" and "Could not finish; retry required", the Errors
+  section shows "Pending access check or retry", and Current issues in Activity and
+  diagnostics shows "The Internet connection appears to be offline."
+
+Not executed for 0.4.1:
 
 - Sign-in page Retry: open the WHOOP sign-in with the phone offline, see the message,
   go online and tap **Retry**.
-- Options > About shows "0.4.1 (9)".
 - Token refresh during sign-in: sign in again while a sync refreshes an expired token,
   then confirm the new account stays connected.
 

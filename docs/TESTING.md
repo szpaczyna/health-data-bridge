@@ -42,7 +42,7 @@ cases cover shared token refresh, a refresh overlapping sign-in or Disconnect an
 | `scripts/verify_local.sh` | Passed; ViewModel smoke 17 scenarios |
 | Generic iOS Simulator Debug build, unsigned | Passed |
 
-No isolated simulator native/UI suite and no device check was run for 0.4.1.
+No isolated simulator native/UI suite was run for 0.4.1. Device observations reported by the maintainer are in the 0.4.1 report.
 
 ## 0.4.0 (8) local results
 
