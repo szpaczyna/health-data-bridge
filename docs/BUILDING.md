@@ -16,6 +16,18 @@ xcodebuild -project iOS/WHOOPHealthSync.xcodeproj \
   CODE_SIGNING_ALLOWED=NO -jobs 2 build
 ```
 
+## Install on an iPhone from the command line
+
+`scripts/install_on_device.sh` builds the app with `xcodebuild` and installs it on a paired iPhone with `devicectl`. It uses automatic signing with the team in the project, so the Mac needs that team's account in Xcode. The phone must be unlocked and reachable over a cable or the same Wi-Fi network.
+
+```sh
+scripts/install_on_device.sh                  # the only paired physical iPhone, Debug
+scripts/install_on_device.sh "My iPhone"      # pick a device by name, UDID or identifier
+scripts/install_on_device.sh -c Release --launch
+```
+
+Build output stays in `build/DerivedData-device`, which Git ignores, so repeated runs build incrementally.
+
 ## Existing installations
 
 Keep the same bundle identifier and signing identity when updating an existing app. Do not uninstall first. Preserve the Keychain service/account strings, `WHOOPHealthSync` application-support directory, sync IDs and metadata namespaces. Changing the public/display name does not require changing these persistence identities. Existing Shortcuts use the retained App Intent implementation.
