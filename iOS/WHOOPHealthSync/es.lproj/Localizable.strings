@@ -1,13 +1,12 @@
 "Activity" = "Actividad";
 "Activity and diagnostics" = "Actividad y diagnóstico";
-"Adds only missing sleep stages and heart rate samples, without replacing data from other sources." = "Añade únicamente las fases de sueño y muestras de frecuencia cardíaca que falten, sin sustituir datos de otras fuentes.";
 "App language" = "Idioma de la app";
 "Automatic" = "Automático";
 "Automatic uses Spanish when the iPhone is set to Spanish, Polish when set to Polish, and English for every other language." = "Automático usa español cuando el iPhone está configurado en español, polaco cuando está en polaco e inglés para cualquier otro idioma.";
 "Automation" = "Automatización";
-"Authorize WHOOP and Apple Health once; then sync here or from Shortcuts." = "Autoriza WHOOP y Apple Health una vez; después podrás sincronizar desde aquí o mediante Atajos.";
 "Available in Shortcuts" = "Disponible en Atajos";
 "Cancel" = "Cancelar";
+"Cancelled" = "Cancelada";
 "Completed" = "Correcta";
 "Completed with issues" = "Completada con incidencias";
 "Connect" = "Conectar";
@@ -52,7 +51,6 @@
 "Never" = "Nunca";
 "Next heart-rate window" = "Próxima ventana de frecuencia cardíaca";
 "Next sleep review window" = "Próxima ventana de revisión del sueño";
-"Not connected" = "No conectado";
 "Opens the WHOOP sign-in flow" = "Abre el inicio de sesión de WHOOP";
 "Open Shortcuts on your iPhone to add the Sync WHOOP action." = "Abre Atajos en el iPhone para añadir la acción Sincronizar WHOOP.";
 "Open Shortcuts to add the Sync WHOOP action or include it in a personal automation." = "Abre Atajos para añadir la acción Sincronizar WHOOP o incluirla en una automatización personal.";
@@ -60,7 +58,6 @@
 "Polish" = "Polaco";
 "Ready to sync" = "Listo para sincronizar";
 "Reconnect" = "Reconectar";
-"Reconnect required" = "Es necesario reconectar";
 "Recorded sleeps" = "Sueños registrados";
 "Result" = "Resultado";
 "Run the same sync from Siri or a personal automation. Your account and HealthKit must first be authorized in this app." = "Ejecuta la misma sincronización desde Siri o una automatización personal. La cuenta y HealthKit deben haberse autorizado previamente en esta app.";
@@ -79,7 +76,6 @@
 "Stages removed" = "Fases eliminadas";
 "Stages skipped" = "Fases omitidas";
 "Stages written" = "Fases escritas";
-"Status" = "Estado";
 "Sync" = "Sincronizar";
 "Sync in progress" = "Sincronización en curso";
 "Sync now" = "Sincronizar ahora";
@@ -99,11 +95,6 @@
 "Configuration pending" = "Configuración pendiente";
 "Paused: WHOOP already exports HRV" = "Pausada: WHOOP ya exporta HRV";
 "History pending continuation" = "Histórico pendiente de continuar";
-"Completes recovery HRV WHOOP does not send to Health. The first import covers all available history; subsequent syncs include new data and the last seven days. Values are associated with sleep, with no daytime readings generated." = "Completa la HRV de recuperación que WHOOP no envíe a Salud. La primera importación abarca todo el histórico disponible; después se revisan los datos nuevos y los siete días recientes. Se importa el valor asociado al sueño; no se generan lecturas durante el día.";
-"Activation requires validation of the WHOOP recovery contract and historical HealthKit writes with SDK 27. This development build keeps recovery HRV disabled." = "La activación requiere validar el contrato de recuperación WHOOP y la escritura histórica en HealthKit con SDK 27. Esta compilación de desarrollo mantiene la HRV de recuperación desactivada.";
-"Import all available history" = "Importar todo el histórico disponible";
-"Recovery validation is pending" = "Validación de recuperación pendiente";
-"Disable recovery HRV" = "Desactivar HRV de recuperación";
 "Recovery HRV written" = "HRV de recuperación escrita";
 "Recovery HRV skipped" = "HRV de recuperación omitida";
 "Recovery history pages" = "Páginas del histórico HRV";
@@ -129,23 +120,18 @@
 "Recovery value probe could not complete; retry. No health data was written." = "No se pudo completar el diagnóstico de valores. Reinténtalo. No se escribió ningún dato en Salud.";
 
 "Imports the HRV measured during the main sleep, not the WHOOP recovery percentage. Subsequent syncs review the last seven days. No daytime readings are generated." = "Importa la VFC medida durante el sueño principal, no el porcentaje de recuperación de WHOOP. Las sincronizaciones posteriores revisan los últimos siete días. No genera lecturas diurnas.";
-"Configure recovery HRV" = "Configurar VFC de recuperación";
 "Import indicated history" = "Importar el histórico indicado";
 "Stop import" = "Detener importación";
 "WHOOP history starts" = "Inicio del uso de WHOOP";
-"Select when you started using WHOOP. Completion applies to the indicated period; it does not certify the end of the provider's history." = "Selecciona cuándo empezaste a usar WHOOP. La finalización corresponde al periodo indicado; no certifica el fin del histórico del proveedor.";
 "Health access" = "Acceso a Salud";
-"Authorize recovery HRV" = "Autorizar VFC de recuperación";
 "Health reading is limited from" = "La lectura de Salud está limitada desde";
 "Older recoveries remain pending until reading covers their sleep dates." = "Las VFC anteriores quedan pendientes hasta que la lectura cubra las fechas de su sueño.";
-"WHOOP already writes recovery HRV to Health. Import remains paused to avoid duplicates." = "WHOOP ya escribe VFC de recuperación en Salud. La importación queda pausada para evitar duplicados.";
 "WHOOP source in Health" = "Fuente de WHOOP en Salud";
 "Not identified" = "Sin identificar";
 "I checked that WHOOP does not already write recovery HRV to Health" = "He comprobado que WHOOP aún no escribe VFC de recuperación en Salud";
 "Health does not reveal denied reading when only this app's data or no data is visible. Check that recovery HRV reading is allowed for all dates in Health before enabling import." = "Salud no revela una lectura denegada cuando solo se ven datos de esta app o no hay datos. Comprueba en Salud que permites leer la VFC de recuperación de todas las fechas antes de activar la importación.";
 "I allowed recovery HRV reading for all dates" = "He permitido leer la VFC de recuperación de todas las fechas";
 "Confirm the account for saved sync progress in Options before enabling recovery HRV." = "Confirma en Opciones la cuenta del progreso guardado antes de activar la VFC de recuperación.";
-"Enable recovery HRV" = "Activar VFC de recuperación";
 "Indicated history imported" = "Histórico indicado importado";
 "Partial history: Health access pending" = "Histórico parcial: pendiente de acceso a Salud";
 "History pending manual review" = "Histórico pendiente de revisión manual";
@@ -263,9 +249,5 @@
 "requires iOS 27" = "requiere iOS 27";
 "completed" = "completada";
 "pending/with issues" = "pendiente/con incidencias";
-"with issues" = "con incidencias";
-"failed" = "fallida";
-"in progress" = "en curso";
-"unknown" = "desconocida";
 "Read-only diagnostic. It does not write to Health or change sync progress. The private hrv_rmssd field is in seconds and is shown in ms (×1000)." = "Diagnóstico de solo lectura. No escribe en Salud ni cambia el progreso de la sincronización. El campo privado hrv_rmssd está en segundos y se muestra en ms (×1000).";
 "Last seven days" = "Últimos siete días";

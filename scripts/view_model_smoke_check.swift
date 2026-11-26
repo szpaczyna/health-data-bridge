@@ -10,11 +10,11 @@ struct SyncViewModelSmokeCheck {
         try await testNextSyncPreviewUsesStoredCheckpoints()
         try await testDiagnosticsReportIsOperationalAndSanitized()
         try await testLegacyAccountConfirmationBlocksSyncAndRetainsProgress()
-        try await testRecoveryConfigurationAndDedicatedImport()
         try await testUnifiedFreshSetupAndSevenDayDefault()
         try await testExistingInstallationSkipsSetupAndPreservesRecovery()
         try await testUnifiedSetupCanSkipUnavailableHRV()
         try await testUnifiedHistoryUsesOneRunnerAndClearsFailure()
+        try await testCancelledSyncIsSilentAndOnlyImportIsImportingHistory()
         try await testCorruptStoreNeverStartsOnboarding()
         try await testPartialAuthorizationAndSelectionInvalidation()
         try await testAtomicSetupFailureAndDuplicateSave()
@@ -22,7 +22,7 @@ struct SyncViewModelSmokeCheck {
         try await testOlderStoredRunKeepsInAppSummary()
         try await testAutomationNotificationReloadsSummary()
         try await testUnlockedStoreClearsUnavailableBanner()
-        print("SyncViewModel smoke check passed (17 scenarios: unified setup, corrupt-store gate, unlock reload, partial authorization, atomic rollback, duplicate-save guard, continuity, history, stored-run summary and automation reload)")
+        print("SyncViewModel smoke check passed (17 scenarios: unified setup, corrupt-store gate, unlock reload, partial authorization, atomic rollback, duplicate-save guard, continuity, history, sync cancellation, stored-run summary and automation reload)")
     }
 
     @MainActor
@@ -199,42 +199,6 @@ struct SyncViewModelSmokeCheck {
         expect(health.requestCount == 1 && runner.requestCount == 1, "Confirmed account can continue the existing manual sync flow.")
     }
 
-    @MainActor
-    private static func testRecoveryConfigurationAndDedicatedImport() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("WHOOPRecoverySetup-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let repository = SyncRepository(fileURL: directory.appendingPathComponent("sync-store.json"))
-        try repository.bindAccountManually("setup-account")
-        let configuration = FakeRecoveryConfigurator(repository: repository)
-        let legacy = SequenceSyncRunner(results: [.success(SyncSummary())])
-        let vm = SyncViewModel(repository: repository, syncEngine: legacy, recoveryConfigurator: configuration, initialAuthStatus: .authenticated(email: "jose@example.com"))
-        vm.configure()
-        expect(vm.canConfigureRecovery && !vm.canImportRecovery, "Connected existing users can configure before recovery is enabled.")
-        let unauthorized = await vm.enableRecovery(start: date(1), fullReadConfirmed: true, whoopBundle: nil)
-        expect(!unauthorized, "No activation before authorization.")
-        configuration.authorizationError = RecoverySyncError.readUnverified
-        await vm.authorizeRecovery()
-        let afterFailure = try repository.recoveryState()
-        expect(vm.recoveryAuthorization == nil && !afterFailure.enabled, "Failed authorization must not activate recovery.")
-        configuration.authorizationError = nil
-        await vm.authorizeRecovery()
-        configuration.configurationError = RecoverySyncError.accountMismatch
-        let wrongAccount = await vm.enableRecovery(start: date(1), fullReadConfirmed: true, whoopBundle: nil)
-        expect(!wrongAccount, "Wrong account cannot activate.")
-        configuration.configurationError = nil
-        let enabled = await vm.enableRecovery(start: date(1), fullReadConfirmed: true, whoopBundle: nil)
-        expect(enabled && vm.canImportRecovery, "Successful setup enables dedicated history import.")
-        await vm.importRecoveryHistory()
-        expect(configuration.imports == 1 && legacy.requestCount == 0, "Dedicated HRV import must not execute legacy sleep or heart-rate sync.")
-        expect(vm.lastSummary?.recovery.written == 2 && !vm.isSyncing, "Dedicated summary is published and busy state clears.")
-        configuration.importError = RecoverySyncError.rateLimited(until: Date().addingTimeInterval(60))
-        await vm.importRecoveryHistory()
-        expect(vm.lastSummary == nil && !vm.isSyncing && vm.errors.count == 1, "Failed recovery import clears prior successful summary and exposes the current failure.")
-        vm.disableRecovery()
-        let disabled = try repository.recoveryState()
-        expect(!vm.canImportRecovery && disabled.historyStartDate == date(1), "Disable preserves configured historical progress.")
-    }
-
     private static func date(_ seconds: TimeInterval) -> Date {
         Date(timeIntervalSince1970: seconds)
     }
@@ -267,7 +231,7 @@ struct SyncViewModelSmokeCheck {
         expect(vm.recoveryResultKey(RecoverySyncSummary()) == "Not checked", "A base-phase failure must not misreport configured, unattempted HRV as disabled.")
         expect(state.historyStartDate == now.addingTimeInterval(-7 * 86400), "Fresh HRV starts at seven days, not a maintainer-specific date.")
         await vm.synchronize()
-        expect(runner.syncs == 1 && recovery.imports == 0, "Daily sync uses the common runner, not historical import.")
+        expect(runner.syncs == 1 && runner.historyStarts.isEmpty, "Daily sync uses the common runner, not historical import.")
         let relaunched = SyncViewModel(repository: SyncRepository(fileURL: url), syncEngine: runner,
             initialAuthStatus: .authenticated(email: "new@example.invalid"))
         relaunched.configure()
@@ -340,6 +304,30 @@ struct SyncViewModelSmokeCheck {
         runner.historyError = CancellationError()
         await vm.importHistory(start: nil)
         expect(vm.lastSummary == nil && vm.errors.isEmpty && !vm.isSyncing, "Cancelled history clears stale summary and busy state without a spurious error.")
+    }
+
+    @MainActor private static func testCancelledSyncIsSilentAndOnlyImportIsImportingHistory() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("cancelled-sync-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let repo = SyncRepository(fileURL: url); try repo.completeSyncSetup()
+        let runner = BlockingSyncRunner()
+        let vm = SyncViewModel(healthKitService: FakeHealthKitAuthorizer(), repository: repo, syncEngine: runner,
+            initialAuthStatus: .authenticated(email: "owner@example.invalid"))
+        vm.configure()
+        let sync = Task { await vm.synchronize() }
+        while !runner.syncStarted { await Task.yield() }
+        expect(vm.isSyncing && !vm.isImportingHistory, "A normal sync is not a history import.")
+        vm.disconnect()
+        await sync.value
+        expect(vm.errors.isEmpty, "A cancelled sync exposes no raw cancellation error.")
+        expect(!vm.events.contains { $0.hasPrefix("Sync failed") }, "A cancelled sync logs no failure event.")
+        vm.authStatus = .authenticated(email: "owner@example.invalid")
+        let history = Task { await vm.importHistory(start: nil) }
+        while !runner.historyStarted { await Task.yield() }
+        expect(vm.isImportingHistory, "A running history import is flagged.")
+        vm.cancelRecoveryImport()
+        await history.value
+        expect(!vm.isImportingHistory && !vm.isSyncing && vm.errors.isEmpty, "Stopping the import clears the flag without an error.")
     }
 
     @MainActor private static func testCorruptStoreNeverStartsOnboarding() async throws {
@@ -531,6 +519,21 @@ struct SyncViewModelSmokeCheck {
     }
 }
 
+@MainActor private final class BlockingSyncRunner: SyncRunning, HistoryRunning {
+    var syncStarted = false
+    var historyStarted = false
+    func synchronize() async throws -> SyncSummary {
+        syncStarted = true
+        try await Task.sleep(nanoseconds: 60_000_000_000)
+        return SyncSummary()
+    }
+    func importHistory(start: Date?) async throws -> SyncSummary {
+        historyStarted = true
+        try await Task.sleep(nanoseconds: 60_000_000_000)
+        return SyncSummary()
+    }
+}
+
 private final class FakeHealthKitAuthorizer: HealthKitAuthorizing {
     var requestCount = 0
 
@@ -598,8 +601,6 @@ private final class FakeAccountBinder: AccountBindingProviding {
     var recoveryAvailable = true
     var authorizationError: Error?
     var configurationError: Error?
-    var imports = 0
-    var importError: Error?
     var pauseSave = false
     var saveCount = 0
     var saveContinuation: CheckedContinuation<Void, Never>?
@@ -618,14 +619,5 @@ private final class FakeAccountBinder: AccountBindingProviding {
     func authorizeRecovery() async throws -> RecoveryAuthorization {
         if let authorizationError { throw authorizationError }
         return RecoveryAuthorization(sources: [], access: .unknown)
-    }
-    func configureRecovery(start: Date, fullReadConfirmed: Bool, whoopBundle: String?) async throws {
-        if let configurationError { throw configurationError }
-        var state = try repository.recoveryState()
-        state.enabled = true; state.configured = true; state.historyStartDate = start
-        try repository.commitRecoveryState(state)
-    }
-    func importRecoveryHistory() async throws -> SyncSummary {
-        imports += 1; if let importError { throw importError }; var summary = SyncSummary(); summary.recovery.written = 2; return summary
     }
 }

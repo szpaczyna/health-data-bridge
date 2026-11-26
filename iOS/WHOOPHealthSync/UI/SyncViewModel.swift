@@ -15,15 +15,12 @@ extension LiveSyncRuntime: AccountBindingProviding {}
 @MainActor protocol RecoveryConfiguring {
     var recoveryAvailable: Bool { get }
     func authorizeRecovery() async throws -> RecoveryAuthorization
-    func configureRecovery(start: Date, fullReadConfirmed: Bool, whoopBundle: String?) async throws
-    func importRecoveryHistory() async throws -> SyncSummary
 }
 extension LiveSyncRuntime: RecoveryConfiguring {}
 
 @MainActor protocol SyncDataConfiguring {
     func authorizeSyncData(includeRecovery: Bool) async throws -> RecoveryAuthorization?
 }
-extension LiveSyncRuntime: SyncDataConfiguring {}
 
 @MainActor protocol SelectedDataAuthorizing {
     func authorizeSelectedData(includeRecovery: Bool) async throws -> SyncDataAuthorization
@@ -70,6 +67,7 @@ struct NextSyncPreview: Equatable {
 final class SyncViewModel: ObservableObject {
     @Published var authStatus: AuthStatus = .disconnected
     @Published var isSyncing = false
+    @Published private(set) var isImportingHistory = false
     @Published var lastSummary: SyncSummary?
     @Published var diagnostics: SyncDiagnostics = .empty
     @Published var recoveryState = RecoverySyncState()
@@ -297,8 +295,10 @@ final class SyncViewModel: ObservableObject {
             if Self.requiresReconnect(error) {
                 authStatus = .reconnectRequired(reason: message)
             }
-            errors.append(message)
-            appendEvent(String(localized: "Sync failed: \(message)"))
+            if !(error is CancellationError) {
+                errors.append(message)
+                appendEvent(String(localized: "Sync failed: \(message)"))
+            }
         }
     }
 
@@ -378,8 +378,8 @@ final class SyncViewModel: ObservableObject {
 
     func importHistory(start: Date?) async {
         guard canImportHistory, let importer = syncEngine as? any HistoryRunning else { return }
-        isSyncing = true; errors.removeAll(); lastSummary = nil; recoveryProgress = RecoverySyncSummary()
-        defer { isSyncing = false; activeSyncTask = nil; displayedRunStartedAt = repository?.latestFinishedRun()?.startedAt; refreshDiagnostics() }
+        isSyncing = true; isImportingHistory = true; errors.removeAll(); lastSummary = nil; recoveryProgress = RecoverySyncSummary()
+        defer { isSyncing = false; isImportingHistory = false; activeSyncTask = nil; displayedRunStartedAt = repository?.latestFinishedRun()?.startedAt; refreshDiagnostics() }
         let task = Task { @MainActor in try await importer.importHistory(start: start) }
         activeSyncTask = task
         do {
@@ -545,52 +545,7 @@ final class SyncViewModel: ObservableObject {
     @Published private(set) var recoveryAuthorization: RecoveryAuthorization?
     @Published private(set) var recoveryProgress = RecoverySyncSummary()
     var supportsRecovery: Bool { recoveryConfigurator?.recoveryAvailable == true }
-    var canConfigureRecovery: Bool {
-        if case .authenticated = authStatus { return supportsRecovery && !isSyncing && !isBindingAccount && !isProbingRecovery && !isConfiguringRecovery }
-        return false
-    }
-    var canImportRecovery: Bool {
-        canConfigureRecovery && recoveryState.enabled && recoveryState.configured && !requiresAccountBinding && !recoveryState.pausedForNativeExport
-    }
-    func authorizeRecovery() async {
-        guard canConfigureRecovery, let recoveryConfigurator else { return }
-        isConfiguringRecovery = true; recoveryAuthorization = nil
-        defer { isConfiguringRecovery = false; refreshDiagnostics() }
-        do { recoveryAuthorization = try await recoveryConfigurator.authorizeRecovery() }
-        catch { errors.append(Self.message(error)) }
-    }
-    func enableRecovery(start: Date, fullReadConfirmed: Bool, whoopBundle: String?) async -> Bool {
-        guard canConfigureRecovery, !requiresAccountBinding, recoveryAuthorization != nil, let recoveryConfigurator else { return false }
-        isConfiguringRecovery = true
-        defer { isConfiguringRecovery = false; refreshDiagnostics() }
-        do {
-            try await recoveryConfigurator.configureRecovery(start: start, fullReadConfirmed: fullReadConfirmed, whoopBundle: whoopBundle)
-            return true
-        } catch { errors.append(Self.message(error)); return false }
-    }
-    func importRecoveryHistory() async {
-        guard canImportRecovery, let recoveryConfigurator else { return }
-        isSyncing = true; errors.removeAll(); lastSummary = nil; recoveryProgress = RecoverySyncSummary()
-        defer { isSyncing = false; activeSyncTask = nil; displayedRunStartedAt = repository?.latestFinishedRun()?.startedAt; refreshDiagnostics() }
-        let task = Task { @MainActor in try await recoveryConfigurator.importRecoveryHistory() }
-        activeSyncTask = task
-        do { lastSummary = try await task.value }
-        catch {
-            if Self.requiresReconnect(error) { authStatus = .reconnectRequired(reason: Self.message(error)) }
-            if !(error is CancellationError) { errors.append(Self.message(error)) }
-        }
-    }
     func cancelRecoveryImport() { activeSyncTask?.cancel() }
-
-    func disableRecovery() {
-        activeSyncTask?.cancel()
-        guard let repository else { return }
-        do {
-            var state = try repository.recoveryState(); state.enabled = false
-            try repository.commitRecoveryState(state)
-            refreshDiagnostics()
-        } catch { errors.append(Self.message(error)) }
-    }
 
     func confirmExistingAccount() async {
         guard let accountBinder, !isSyncing, !isBindingAccount else { return }
@@ -736,15 +691,7 @@ private final class IsolatedLoginURLProtocol: URLProtocol {
         if state.enabled { summary.recovery.written = 1; summary.recovery.status = .completed }
         return summary
     }
-    func importHistory(start: Date?) async throws -> SyncSummary { try await importRecoveryHistory() }
-    func configureRecovery(start: Date, fullReadConfirmed: Bool, whoopBundle: String?) async throws {
-        guard fullReadConfirmed else { throw RecoverySyncError.readUnverified }
-        var state = try repository.recoveryState()
-        state.accountKey = "isolated-ui-account"
-        state.enabled = true; state.configured = true; state.historyStartDate = start; state.historyScopeLimited = true
-        try repository.commitRecoveryState(state)
-    }
-    func importRecoveryHistory() async throws -> SyncSummary {
+    func importHistory(start: Date?) async throws -> SyncSummary {
         var state = try repository.recoveryState()
         state.initialEnumerationComplete = true; state.historicalPagesConfirmed = 3
         try repository.commitRecoveryState(state)
