@@ -673,7 +673,7 @@ final class SyncEngine {
                 // Throttling and outages also arrive as Cognito errors; only a refused token means the session is lost.
                 return (status == 400 || status == 401) && message.hasPrefix("NotAuthorizedException")
             case .unexpectedCognitoResponse, .invalidHTTPResponse, .webSessionMissingAccessToken,
-                 .webSessionMalformedAccessToken, .webSessionMissingEmail:
+                 .webSessionMalformedAccessToken, .webSessionMissingEmail, .sessionChanged:
                 return false
             }
         }
