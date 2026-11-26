@@ -39,6 +39,16 @@ final class SyncResultTests: XCTestCase {
         XCTAssertEqual(summary.errors.count, 1)
     }
 
+    func testRecoverySettledStatusesAgreeWithIncompleteResults() {
+        for status in [RecoveryFlowStatus.pausedNativeExport, .noData, .skippedExternal] {
+            var recovery = RecoverySyncSummary(); recovery.status = status
+            XCTAssertTrue(status.isSettled); XCTAssertTrue(recovery.isSettled)
+            recovery.pending = 1
+            XCTAssertFalse(recovery.isSettled)
+        }
+        XCTAssertFalse(RecoveryFlowStatus.historyPending.isSettled)
+    }
+
     func testNoDataExistingAndUnverifiedAreDifferentResults() {
         XCTAssertNotEqual(SyncDataResult.noData, .existing)
         XCTAssertNotEqual(SyncDataResult.noData, .pendingAccess)

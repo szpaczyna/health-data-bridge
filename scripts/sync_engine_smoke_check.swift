@@ -33,6 +33,12 @@ struct SyncEngineSmokeCheck {
         try await testCommonHistoryResumesConfirmedChunks()
         try await testHistoryScopeExpansionIsExplicitAndRetainsRecoveryWork()
         try await testHistoryRecoveryFailureResumesWithoutReplayingWindows()
+        try await testHistoryReadGuardIsAnchoredAtRunStart()
+        try await testOngoingReadGuardIgnoresAppOwnedSamples()
+        try await testShortenedSleepDeletesStaleOwnStagesOutsideWindow()
+        testOnlyLostSessionsCountAsAuthenticationFailures()
+        try await testPausedNativeExportSettlesRecovery()
+        try await testHistoryImportFinishesWhenNativeExportPaused()
         print("SyncEngine smoke check passed (including late heart-rate backfill, explicit history, durable resume and live-checkpoint continuity)")
     }
 
@@ -906,6 +912,119 @@ struct SyncEngineSmokeCheck {
         _ = try await resumed.run(start: nil, now: cutoff.addingTimeInterval(86400))
         expect(windows == 1 && !reloaded.hasPendingHistoryImport, "Resume retries only HRV, not confirmed sleep/heart-rate windows.")
     }
+
+    @MainActor
+    private static func testHistoryReadGuardIsAnchoredAtRunStart() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("history-read-guard-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let now = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970))
+        let repo = SyncRepository(fileURL: url)
+        try repo.bindAccountManually(WhoopRecovery.pseudonymousAccountKey(userID: "fake-user"))
+        try repo.setSleepCheckpoint(now); try repo.setHeartRateCheckpoint(now, resolution: 6)
+        let recent = TimeRange(start: now.addingTimeInterval(-10 * 86400), end: now.addingTimeInterval(-10 * 86400 + 3600))
+        let health = FakeHealthData(
+            externalSleep: [ExistingSleepSample(id: "apple-sleep-recent", range: recent, value: .asleepCore, isOwnedByApp: false, whoopSleepID: nil, syncIdentifier: nil)],
+            externalHeartRate: [ExistingHeartRateSample(id: "apple-hr-recent", range: TimeRange(start: recent.start, end: recent.start.addingTimeInterval(6)), bpm: 60, isOwnedByApp: false, syncIdentifier: nil)]
+        )
+        let start = now.addingTimeInterval(-200 * 86400)
+        let window = TimeRange(start: start, end: start.addingTimeInterval(7 * 86400))
+        let sleep = try makeSleepSession(id: "history-read-guard", start: start.addingTimeInterval(86400))
+        let point = HeartRatePoint(timestamp: start.addingTimeInterval(120), bpm: 61, sourceStepSeconds: 6)
+        let engine = SyncEngine(api: FakeWhoopAPI(sleeps: [sleep], heartRatePoints: [point]), healthKit: health, repository: repo,
+            heartRateStepSeconds: 6, requiresInitialHealthKitReadVisibility: true)
+        let summary = try await engine.synchronize(recoveryMode: .recent, resumeDeferred: false, historyWindow: window)
+        expect(summary.stagesWritten > 0 && summary.heartRateWritten > 0, "History read guard must check visibility near the run start, not the old window end.")
+    }
+
+    @MainActor
+    private static func testOngoingReadGuardIgnoresAppOwnedSamples() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("own-read-guard-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let now = Date()
+        let repo = SyncRepository(fileURL: url)
+        try repo.bindAccountManually(WhoopRecovery.pseudonymousAccountKey(userID: "fake-user"))
+        let previousCheckpoint = now.addingTimeInterval(-3_600)
+        try repo.setSleepCheckpoint(previousCheckpoint); try repo.setHeartRateCheckpoint(previousCheckpoint, resolution: 6)
+        let owned = TimeRange(start: now.addingTimeInterval(-86400), end: now.addingTimeInterval(-86400 + 1800))
+        let health = FakeHealthData(
+            externalSleep: [ExistingSleepSample(id: "own-sleep", range: owned, value: .asleepCore, isOwnedByApp: true, whoopSleepID: "old", whoopSleepFingerprint: "fp", syncIdentifier: "own-sleep")],
+            externalHeartRate: [ExistingHeartRateSample(id: "own-hr", range: TimeRange(start: owned.start, end: owned.start.addingTimeInterval(6)), bpm: 60, isOwnedByApp: true, syncIdentifier: "own-hr")]
+        )
+        let engine = SyncEngine(
+            api: FakeWhoopAPI(sleeps: [try makeSleepSession(id: "own-read-guard", start: now.addingTimeInterval(-1_800))],
+                heartRatePoints: [HeartRatePoint(timestamp: now.addingTimeInterval(-60), bpm: 62, sourceStepSeconds: 6)]),
+            healthKit: health, repository: repo, heartRateStepSeconds: 6, requiresInitialHealthKitReadVisibility: true)
+        do {
+            _ = try await engine.synchronize()
+            fatalError("App-owned samples alone must not prove HealthKit read access.")
+        } catch let error as SyncEngineError {
+            expect(error == .healthKitReadVisibilityUnverified(["Sleep Analysis", "Heart Rate"]), "Read guard must report both types when only own samples are visible.")
+        }
+        expect(health.savedSleepFragmentCount == 0 && health.savedHeartRatePointCount == 0, "Read guard must stop before writing.")
+    }
+
+    @MainActor
+    private static func testShortenedSleepDeletesStaleOwnStagesOutsideWindow() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("shortened-sleep-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let revised = try makeSleepSession(id: "shortened-sleep", start: Date().addingTimeInterval(-7_200))
+        let stale = ExistingSleepSample(
+            id: "stale-early-stage",
+            range: TimeRange(start: revised.start.addingTimeInterval(-40 * 60), end: revised.start.addingTimeInterval(-20 * 60)),
+            value: .asleepCore, isOwnedByApp: true, whoopSleepID: revised.whoopSleepID,
+            whoopSleepFingerprint: "previous-fingerprint", syncIdentifier: "stale-early-stage")
+        let health = FakeHealthData(externalSleep: [stale], externalHeartRate: [])
+        let engine = SyncEngine(api: FakeWhoopAPI(sleeps: [revised], heartRatePoints: []), healthKit: health,
+            repository: SyncRepository(fileURL: url), heartRateStepSeconds: 6)
+        let summary = try await engine.synchronize()
+        expect(!health.hasSleepSample(id: stale.id) && summary.stagesRemoved == 1, "A later start must delete own stages of the same sleep outside the new window.")
+    }
+
+    @MainActor
+    private static func testOnlyLostSessionsCountAsAuthenticationFailures() {
+        expect(!SyncEngine.isAuthenticationFailure(WhoopAuthError.cognitoRejected(status: 503, message: "ServiceUnavailable: down")), "Cognito 503 is transient.")
+        expect(!SyncEngine.isAuthenticationFailure(WhoopAuthError.cognitoRejected(status: 429, message: "TooManyRequestsException: slow down")), "Cognito 429 is transient.")
+        expect(!SyncEngine.isAuthenticationFailure(WhoopAuthError.cognitoRejected(status: 400, message: "TooManyRequestsException: slow down")), "Cognito throttling is transient.")
+        expect(!SyncEngine.isAuthenticationFailure(WhoopAuthError.invalidHTTPResponse), "A missing HTTP response is transient.")
+        expect(!SyncEngine.isAuthenticationFailure(WhoopAuthError.unexpectedCognitoResponse), "An unexpected Cognito body is transient.")
+        expect(SyncEngine.isAuthenticationFailure(WhoopAuthError.cognitoRejected(status: 400, message: "NotAuthorizedException: Refresh Token has expired")), "A rejected refresh token needs reconnect.")
+        expect(SyncEngine.isAuthenticationFailure(WhoopAuthError.notAuthenticated), "A missing session needs reconnect.")
+        expect(SyncEngine.isAuthenticationFailure(WhoopAuthError.webSessionMissingRefreshToken), "A missing refresh token needs reconnect.")
+    }
+
+    @MainActor
+    private static func testPausedNativeExportSettlesRecovery() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("paused-native-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let repo = SyncRepository(fileURL: url)
+        var state = try repo.recoveryState(); state.enabled = true; state.configured = true; state.pausedForNativeExport = true
+        state.accountKey = WhoopRecovery.pseudonymousAccountKey(userID: "fake-user")
+        try repo.commitRecoveryState(state)
+        let provider = GatedRecoveryProvider(); provider.contractValidated = true
+        let pipeline = RecoverySyncPipeline(provider: provider, health: GatedRecoveryHealth(supported: true), persistence: repo, appBundle: "test")
+        let engine = SyncEngine(api: FakeWhoopAPI(sleeps: [], heartRatePoints: []), healthKit: FakeHealthData(externalSleep: [], externalHeartRate: []),
+            repository: repo, recoveryPipeline: pipeline)
+        let summary = try await engine.synchronize()
+        expect(summary.recovery.status == .pausedNativeExport, "Recovery reports the native-export pause.")
+        expect(!summary.errors.contains { $0.hasPrefix("Recovery HRV:") }, "A native-export pause is settled, not an HRV error.")
+    }
+
+    @MainActor
+    private static func testHistoryImportFinishesWhenNativeExportPaused() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("history-paused-native-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let repo = SyncRepository(fileURL: url)
+        try repo.bindAccountManually("history-account")
+        var state = RecoverySyncState(); state.accountKey = "history-account"; state.enabled = true; state.configured = true
+        state.pausedForNativeExport = true
+        try repo.commitRecoveryState(state)
+        let cutoff = Date(timeIntervalSince1970: 5_000_000)
+        let importer = HistoryImporter(repository: repo, syncWindow: { _ in SyncSummary() }, syncRecovery: {
+            var paused = RecoverySyncSummary(); paused.status = .pausedNativeExport; return paused
+        })
+        let summary = try await importer.run(start: cutoff.addingTimeInterval(-86400), now: cutoff)
+        expect(summary.errors.isEmpty && !repo.hasPendingHistoryImport, "A native-export pause finishes the history import like an unsupported OS.")
+    }
 }
 
 private final class FakeWhoopAPI: WhoopAPIProviding {
@@ -994,10 +1113,10 @@ private final class FakeHealthData: HealthDataProviding {
         self.heartRateSamples = externalHeartRate
     }
 
-    func querySleepSamples(from start: Date, to end: Date) async throws -> [HealthKitSleepSampleRecord] {
+    func querySleepSamples(from start: Date, to end: Date, whoopSleepID: String?) async throws -> [HealthKitSleepSampleRecord] {
         sleepQueryWindows.append(TimeRange(start: start, end: end))
         return sleepSamples
-            .filter { $0.range.overlaps(TimeRange(start: start, end: end)) }
+            .filter { $0.range.overlaps(TimeRange(start: start, end: end)) || (whoopSleepID != nil && $0.whoopSleepID == whoopSleepID) }
             .map { existing in
                 HealthKitSleepSampleRecord(
                     sample: HKCategorySample(
@@ -1143,7 +1262,7 @@ private struct SensitivePartialSmokeError: LocalizedError {
 }
 
 @MainActor private final class GatedRecoveryProvider: WhoopRecoveryProviding {
-    let contractValidated = false
+    var contractValidated = false
     var calls = 0
     func historicalPage(accountKey: String, cutoff: Date, cursor: String?) async throws -> RecoveryPage { calls += 1; throw RecoverySyncError.providerContractUnverified }
     func recentRecords(accountKey: String, window: TimeRange) async throws -> [WhoopRecovery] { calls += 1; throw RecoverySyncError.providerContractUnverified }

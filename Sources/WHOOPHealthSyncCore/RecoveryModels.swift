@@ -187,12 +187,19 @@ public struct RecoverySyncState: Codable, Equatable, Sendable {
 public enum RecoveryFlowStatus: String, Codable, Sendable {
     case disabled, requiresIOS27, configurationPending, ready, importingHistory, historyPending
     case noData, skippedExternal, readUnverified, historyLimited, pausedNativeExport, completed, issues
+    public var isSettled: Bool {
+        switch self {
+        case .disabled, .requiresIOS27, .pausedNativeExport, .completed, .historyLimited, .noData, .skippedExternal: true
+        case .configurationPending, .ready, .importingHistory, .historyPending, .readUnverified, .issues: false
+        }
+    }
 }
 public struct RecoverySyncSummary: Codable, Equatable, Sendable {
     public var status: RecoveryFlowStatus = .disabled
     public var downloaded = 0, written = 0, revised = 0, unchanged = 0, skippedExternal = 0
     public var pending = 0, unscorable = 0, invalid = 0, deferredAccess = 0, pagesConfirmed = 0
     public var recentCompleted = false, historicalComplete = false
+    public var isSettled: Bool { status.isSettled && pending == 0 && deferredAccess == 0 }
     public init() {}
 }
 public enum RecoverySyncError: Error, LocalizedError, Equatable {

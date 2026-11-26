@@ -152,8 +152,8 @@ final class LiveSyncRuntime {
     }
 
     func synchronize() async throws -> SyncSummary {
-        try acquireSyncLock(); defer { releaseSyncLock() }
         operationSummary = nil
+        try acquireSyncLock(); defer { releaseSyncLock() }
         try repository.ensureUsable()
         guard repository.hasCompletedSyncSetup else { throw AutomatedSyncError.initialManualSyncRequired }
         try healthKitService.validateExistingAuthorization()
@@ -175,8 +175,8 @@ final class LiveSyncRuntime {
     }
 
     func importHistory(start: Date?) async throws -> SyncSummary {
-        try acquireSyncLock(); defer { releaseSyncLock() }
         operationSummary = nil
+        try acquireSyncLock(); defer { releaseSyncLock() }
         try repository.ensureUsable()
         guard case let .authenticated(email) = authService.currentStatus() else { throw AutomatedSyncError.whoopNotConnected }
         let user = try await api.fetchCurrentUser()
@@ -196,7 +196,7 @@ final class LiveSyncRuntime {
             history.skippedExternal += recent.skippedExternal; history.unscorable += recent.unscorable
             history.invalid += recent.invalid; history.deferredAccess += recent.deferredAccess
             history.pending = recent.pending; history.recentCompleted = recent.recentCompleted
-            if ![.completed, .historyLimited, .disabled].contains(recent.status) { history.status = recent.status }
+            if !recent.status.isSettled { history.status = recent.status }
             return history
         }, canContinue: { Self.appIsActive() })
         importer.progressChanged = { [weak self] in self?.historyProgressChanged?() }
