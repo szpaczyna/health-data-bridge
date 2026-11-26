@@ -2,7 +2,7 @@
 
 ## Connect and configure once
 
-Connect your own WHOOP account. New installations open Configure sync after sign-in: authorize sleep, heart rate and optional compatible recovery HRV together, then Save and sync. The initial lookback is seven days for all three types. You can continue without HRV and enable it later in Options → Configure sync. Later runs use confirmed checkpoints and revision windows. Existing health coverage is checked before writing; unreadable/ambiguous visibility can stop a run rather than assume absence.
+Connect your own WHOOP account. If the WHOOP sign-in page does not load, for example offline, the sheet shows a message and a Retry button; restore the connection and tap Retry. New installations open Configure sync after sign-in: authorize sleep, heart rate and optional compatible recovery HRV together, then Save and sync. The initial lookback is seven days for all three types. You can continue without HRV and enable it later in Options → Configure sync. Later runs use confirmed checkpoints and revision windows. Existing health coverage is checked before writing; unreadable/ambiguous visibility can stop a run rather than assume absence.
 
 Existing installations go directly to their usual Sync now button. Their account, permissions, historical scope and confirmed progress are retained; the new setup does not replace them with a seven-day history. Opening/authorizing/cancelling settings does not disable HRV or discard its saved confirmations.
 
@@ -31,6 +31,6 @@ Open Options → Import an earlier period, select the start date and confirm. Th
 
 The original WHOOP account session is reused. Recovery setup does not require a new login merely because this optional feature was added. An account mismatch blocks use of another account's progress. There is no archive-state selector for switching between accounts.
 
-History windows are bounded and rate limiting is respected. If WHOOP asks the app to wait longer than 30 seconds, sleep and heart-rate requests fail with a rate-limit error instead of waiting; run the import again later. An empty page is not taken as proof of absolute historical exhaustion. The UI reports completion of the indicated scope rather than claiming all provider history was verified.
+History windows are bounded and rate limiting is respected. If WHOOP asks the app to wait longer than 30 seconds, sleep and heart-rate requests fail with a rate-limit error instead of waiting; run the import again later. Recovery HRV requests keep the retry time WHOOP sends, capped at 24 hours, and HRV import resumes on a sync after that time. An empty page is not taken as proof of absolute historical exhaustion. The UI reports completion of the indicated scope rather than claiming all provider history was verified.
 
 If read permissions change, revisit authorization/configuration. A previous manual full-access confirmation cannot detect hidden later revocations. Limited historical visibility and uncertain native coexistence can leave records pending; do not assume an empty result means there are no existing records.

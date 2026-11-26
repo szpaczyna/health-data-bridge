@@ -18,7 +18,7 @@ A free, open-source iOS app that fills gaps in Apple Health using data from your
 
 ## Status and important limitations
 
-Published baseline: **0.3.1 (7)**, tag `0.3.1`, with unified setup and synchronization; its [P01–P24 validation report](docs/VALIDATION_0.3.md) describes it as 0.3.0 (7). The current source release is **0.4.0 (8)**, tag `0.4.0`, which fixes sync, reconciliation, rate-limit, logging and UI defects found in a code audit. See the [0.4.0 release notes](docs/RELEASE_NOTES_0.4.0.md) and the [0.4.0 validation report](docs/VALIDATION_0.4.md) for executed checks. The maintainer installed 0.4.0 (8) from Xcode on an iPhone 17 running iOS 27.3 and reported device HealthKit queries, real-account sync, history import and recovery HRV, the update over 0.3.1 and the Shortcut as working. Previous results are summarized in [Testing](docs/TESTING.md).
+Published baseline: **0.3.1 (7)**, tag `0.3.1`, with unified setup and synchronization; its [P01–P24 validation report](docs/VALIDATION_0.3.md) describes it as 0.3.0 (7). The current source release is **0.4.1 (9)**, tag `0.4.1`, which serializes WHOOP token refresh, caps the recovery `Retry-After` deferral at 24 hours, adds Retry to a failed sign-in page and shows the app version in About. See the [0.4.1 release notes](docs/RELEASE_NOTES_0.4.1.md) and the [0.4.1 validation report](docs/VALIDATION_0.4.1.md); no device check of 0.4.1 has been reported yet. Release 0.4.0 (8), tag `0.4.0`, fixed sync, reconciliation, rate-limit, logging and UI defects found in a code audit ([notes](docs/RELEASE_NOTES_0.4.0.md), [report](docs/VALIDATION_0.4.md)). The maintainer installed 0.4.0 (8) from Xcode on an iPhone 17 running iOS 27.3 and reported device HealthKit queries, real-account sync, history import and recovery HRV, the update over 0.3.1 and the Shortcut as working. Previous results are summarized in [Testing](docs/TESTING.md).
 
 The app currently uses **private, undocumented WHOOP endpoints**, including its authentication flow. They can change or become unavailable. Publishing the source does not establish permission to use these endpoints: review [WHOOP's API terms](https://developer.whoop.com/api-terms-of-use/) and applicable service terms. No claim of WHOOP authorization is made. This license covers this project's code, not WHOOP services, data or trademarks.
 
@@ -35,7 +35,7 @@ There is currently **no App Store release, public TestFlight invitation or downl
 Requirements:
 
 - A Mac with **Xcode 27 and the iOS 27 SDK** to build this branch completely.
-- An iPhone with iOS 17 or later for sleep/heart-rate functionality; recovery RMSSD additionally requires a supporting iOS 27 runtime.
+- An iPhone with iOS 27.0 or later. Recovery RMSSD also needs a runtime that supports it.
 - Your own WHOOP account and an Apple signing team suitable for your installation method.
 
 ```sh

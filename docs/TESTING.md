@@ -29,6 +29,21 @@ The fixture path is simulator-gated, requires the isolated name and is absent fr
 
 Exercise full-read, limited-history and denied-read configurations separately. Authorization prompts and runtime availability matter; record skipped tests rather than reporting them as successes.
 
+## 0.4.1 (9) local results
+
+Run on November 26, 2026 at commit `d4af832` with Xcode 27.2 and Swift 6.4.2. New
+cases cover shared token refresh, a refresh overlapping sign-in or Disconnect and the
+24-hour recovery `Retry-After` cap. Details and the change-to-test table are in
+[the 0.4.1 report](VALIDATION_0.4.1.md).
+
+| Scope | Result |
+| --- | --- |
+| Core XCTest (`swift test --jobs 2`) | 124 passed, 0 failed |
+| `scripts/verify_local.sh` | Passed; ViewModel smoke 17 scenarios |
+| Generic iOS Simulator Debug build, unsigned | Passed |
+
+No isolated simulator native/UI suite and no device check was run for 0.4.1.
+
 ## 0.4.0 (8) local results
 
 Run on November 26, 2026 at commit `a90995d` with Xcode 27.2 and Swift 6.4.2. Details,
