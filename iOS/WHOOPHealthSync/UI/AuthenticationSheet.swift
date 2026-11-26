@@ -5,6 +5,7 @@ struct AuthenticationSheet: View {
     var onConnected: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
     @State private var loginError: String?
+    @State private var loadFailed = false
     @State private var webViewID = UUID()
 
     var body: some View {
@@ -26,6 +27,20 @@ struct AuthenticationSheet: View {
                     .padding()
                 }
 
+                if loadFailed {
+                    Text("Could not load the WHOOP sign-in page. Check your connection and retry.")
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                        .accessibilityIdentifier("auth.loadError")
+                    Button("Retry") {
+                        loadFailed = false
+                        webViewID = UUID()
+                    }
+                    .padding()
+                    .accessibilityIdentifier("auth.retryLoad")
+                }
+
                 if let cookies = viewModel.fixtureWebCookies {
                     Button {
                         complete(cookies)
@@ -35,7 +50,7 @@ struct AuthenticationSheet: View {
                     .accessibilityIdentifier("auth.fixtureLogin")
                     Spacer()
                 } else {
-                    WhoopLoginWebView(onSession: complete)
+                    WhoopLoginWebView(onSession: complete, onLoadFailure: { loadFailed = true })
                         .id(webViewID)
                 }
             }

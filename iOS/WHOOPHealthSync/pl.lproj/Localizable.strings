@@ -251,3 +251,6 @@
 "pending/with issues" = "w toku/z problemami";
 "Read-only diagnostic. It does not write to Health or change sync progress. The private hrv_rmssd field is in seconds and is shown in ms (×1000)." = "Diagnostyka tylko do odczytu. Nie zapisuje niczego w Apple Health ani nie zmienia postępu synchronizacji. Prywatne pole hrv_rmssd jest podawane w sekundach i wyświetlane w ms (×1000).";
 "Last seven days" = "Ostatnie siedem dni";
+"Could not load the WHOOP sign-in page. Check your connection and retry." = "Nie udało się wczytać strony logowania WHOOP. Sprawdź połączenie i spróbuj ponownie.";
+"Retry" = "Ponów";
+"Version" = "Wersja";

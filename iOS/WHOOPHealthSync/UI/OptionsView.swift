@@ -154,6 +154,7 @@ struct OptionsView: View {
             }
 
             Section {
+                LabeledContent("Version", value: appVersion)
                 Text("Independent project. Not affiliated with, sponsored by, or endorsed by WHOOP.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -167,6 +168,13 @@ struct OptionsView: View {
 
     private var isAuthenticated: Bool {
         if case .authenticated = viewModel.authStatus { return true }; return false
+    }
+
+    private var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(build))"
     }
 }
 
