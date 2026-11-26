@@ -130,12 +130,13 @@ running iOS 27.3 and reported these checks as working:
 - HealthKit predicates on the device: the other-source read guard (finding 3), the
   WHOOP sleep ID stage query (finding 4) and the HRV read access query.
 - Sync with a real WHOOP account.
+- History import and recovery HRV with a real WHOOP account.
 - Update over 0.3.1 (7): Xcode built 0.4.0 (8) and installed it onto the phone over
   the existing app.
 - The Sync WHOOP Shortcut.
 
-The report covers these outcomes only. History import and recovery HRV with a real
-account, and a byte-level comparison of the sync store across the update, were not
-reported separately.
+The report covers these outcomes only. A byte-level comparison of the sync store
+across the update and a history import reaching back before the first Health data
+were not reported separately.
 
 Logs, binaries, signing files, device identifiers and state copies stay outside Git.
