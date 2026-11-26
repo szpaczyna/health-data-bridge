@@ -532,7 +532,7 @@ final class SyncEngine {
                     AppLog.heartRate.warning("Discarded \(discarded) HR points outside chunk \(chunk.start, privacy: .public)-\(chunk.end, privacy: .public).")
                 }
                 let points = pointsInChunk.filter { point in
-                    heartRateBoundary.map { HeartRateCoverageReconciler.bucket(for: point, stepSeconds: activeStepSeconds, semantics: .bucketStart).start >= $0 } ?? true
+                    heartRateBoundary.map { HeartRateCoverageReconciler.bucket(for: point, stepSeconds: activeStepSeconds).start >= $0 } ?? true
                 }
                 recordEvent(runID: runID, level: "info", category: "hr.api", message: String(localized: "HR chunk \(Self.iso(chunk.start)) → \(Self.iso(chunk.end)): \(rawPoints.count) downloaded, \(points.count) inside, resolution \(activeStepSeconds)s."))
                 AppLog.heartRate.info("Downloaded \(rawPoints.count) HR points for chunk \(chunk.start, privacy: .public)-\(chunk.end, privacy: .public); \(points.count) inside chunk.")
@@ -544,8 +544,7 @@ final class SyncEngine {
                 let reconciliation = HeartRateCoverageReconciler.plan(
                     points: points,
                     existingSamples: existingSamples.map(\.existing),
-                    stepSeconds: activeStepSeconds,
-                    semantics: .bucketStart
+                    stepSeconds: activeStepSeconds
                 )
 
                 let deleteIDs = Set(reconciliation.ownSamplesToDelete.map(\.id))

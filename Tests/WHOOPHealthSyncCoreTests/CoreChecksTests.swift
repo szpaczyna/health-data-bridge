@@ -737,7 +737,7 @@ final class CoreChecksTests: XCTestCase {
         let ownSamplesAfterFirstSync = firstPlan.pointsToWrite.map { point in
             ExistingHeartRateSample(
                 id: "own-\(SyncIdentifiers.unixMilliseconds(point.timestamp))",
-                range: HeartRateCoverageReconciler.bucket(for: point, stepSeconds: 6, semantics: .bucketStart),
+                range: HeartRateCoverageReconciler.bucket(for: point, stepSeconds: 6),
                 bpm: point.bpm,
                 isOwnedByApp: true,
                 syncIdentifier: SyncIdentifiers.heartRate(timestamp: point.timestamp, stepSeconds: 6)
@@ -766,7 +766,7 @@ final class CoreChecksTests: XCTestCase {
         let ownSamplesAfterFirstSync = firstPlan.pointsToWrite.map { point in
             ExistingHeartRateSample(
                 id: "own-\(SyncIdentifiers.unixMilliseconds(point.timestamp))",
-                range: HeartRateCoverageReconciler.bucket(for: point, stepSeconds: 6, semantics: .bucketStart),
+                range: HeartRateCoverageReconciler.bucket(for: point, stepSeconds: 6),
                 bpm: point.bpm,
                 isOwnedByApp: true,
                 syncIdentifier: SyncIdentifiers.heartRate(timestamp: point.timestamp, stepSeconds: 6)

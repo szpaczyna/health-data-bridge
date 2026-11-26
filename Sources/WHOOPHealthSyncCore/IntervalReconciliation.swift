@@ -123,18 +123,15 @@ public struct SleepReconciliationPlan: Equatable, Sendable {
     public var fragmentsToWrite: [SleepWriteFragment]
     public var ownSamplesToDelete: [ExistingSleepSample]
     public var skippedDetailedFragments: Int
-    public var externalDetailedCoverage: [TimeRange]
 
     public init(
         fragmentsToWrite: [SleepWriteFragment],
         ownSamplesToDelete: [ExistingSleepSample],
-        skippedDetailedFragments: Int,
-        externalDetailedCoverage: [TimeRange]
+        skippedDetailedFragments: Int
     ) {
         self.fragmentsToWrite = fragmentsToWrite
         self.ownSamplesToDelete = ownSamplesToDelete
         self.skippedDetailedFragments = skippedDetailedFragments
-        self.externalDetailedCoverage = externalDetailedCoverage
     }
 }
 
@@ -194,8 +191,7 @@ public enum SleepCoverageReconciler {
         return SleepReconciliationPlan(
             fragmentsToWrite: fragments,
             ownSamplesToDelete: ownSamplesToDelete,
-            skippedDetailedFragments: skipped,
-            externalDetailedCoverage: externalCoverage
+            skippedDetailedFragments: skipped
         )
     }
 

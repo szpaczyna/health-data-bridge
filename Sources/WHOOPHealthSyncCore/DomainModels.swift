@@ -16,10 +16,6 @@ public struct TimeRange: Codable, Equatable, Hashable, Sendable {
         self.end = end
     }
 
-    public var duration: TimeInterval {
-        end.timeIntervalSince(start)
-    }
-
     public var hasPositiveDuration: Bool {
         start < end
     }
