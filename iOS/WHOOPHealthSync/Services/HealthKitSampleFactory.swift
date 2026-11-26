@@ -29,7 +29,7 @@ enum HealthKitSampleFactory {
 
     static func sleepMetadata(for fragment: SleepWriteFragment) -> [String: Any] {
         [
-            HKMetadataKeySyncIdentifier: MetadataKeys.sleepSyncIdentifier(
+            HKMetadataKeySyncIdentifier: SyncIdentifiers.sleep(
                 whoopSleepID: fragment.whoopSleepID,
                 stage: fragment.interval.stage,
                 start: fragment.interval.range.start,
@@ -44,7 +44,7 @@ enum HealthKitSampleFactory {
 
     static func heartRateMetadata(for point: HeartRatePoint, stepSeconds: Int) -> [String: Any] {
         [
-            HKMetadataKeySyncIdentifier: MetadataKeys.heartRateSyncIdentifier(timestamp: point.timestamp, stepSeconds: stepSeconds),
+            HKMetadataKeySyncIdentifier: SyncIdentifiers.heartRate(timestamp: point.timestamp, stepSeconds: stepSeconds),
             HKMetadataKeySyncVersion: MetadataKeys.syncVersion,
             MetadataKeys.whoopHeartRateTimestamp: WhoopAPIClient.isoString(point.timestamp),
             MetadataKeys.sourceStepSeconds: stepSeconds,

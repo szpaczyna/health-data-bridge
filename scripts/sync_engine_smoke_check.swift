@@ -1191,7 +1191,7 @@ private final class FakeHealthData: HealthDataProviding {
             heartRateSamples.append(
                 ExistingHeartRateSample(
                     id: SyncIdentifiers.heartRate(timestamp: point.timestamp, stepSeconds: stepSeconds),
-                    range: HeartRateCoverageReconciler.bucket(for: point, stepSeconds: stepSeconds, semantics: .bucketStart),
+                    range: HeartRateCoverageReconciler.bucket(for: point, stepSeconds: stepSeconds),
                     bpm: point.bpm,
                     isOwnedByApp: true,
                     syncIdentifier: SyncIdentifiers.heartRate(timestamp: point.timestamp, stepSeconds: stepSeconds)

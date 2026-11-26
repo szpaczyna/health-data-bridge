@@ -15,45 +15,42 @@ swiftc -sdk "$host_sdk" -target "$host_target" -typecheck -parse-as-library \
   -I "$build_path/Modules" \
   $(find iOS/WHOOPHealthSync -name '*.swift' | sort)
 
-auth_smoke_binary="$(mktemp -t whoop-auth-smoke)"
-swiftc -sdk "$host_sdk" -target "$host_target" \
-  -I "$build_path/Modules" \
+smoke_dir="$(mktemp -d "${TMPDIR:-/tmp}/whoop-smoke.XXXXXX")"
+trap 'rm -rf "$smoke_dir"' EXIT
+core_objects=("$build_path"/WHOOPHealthSyncCore.build/*.swift.o)
+
+run_smoke() {
+  local name="$1"
+  shift
+  swiftc -sdk "$host_sdk" -target "$host_target" \
+    -I "$build_path/Modules" \
+    "$@" \
+    -o "$smoke_dir/$name"
+  "$smoke_dir/$name"
+}
+
+run_smoke auth \
   iOS/WHOOPHealthSync/AppLog.swift \
   iOS/WHOOPHealthSync/Services/KeychainTokenStore.swift \
   iOS/WHOOPHealthSync/Services/WhoopAuthService.swift \
-  scripts/auth_smoke_check.swift \
-  -o "$auth_smoke_binary"
-"$auth_smoke_binary"
-rm -f "$auth_smoke_binary"
+  scripts/auth_smoke_check.swift
 
-api_smoke_binary="$(mktemp -t whoop-api-smoke)"
-swiftc -sdk "$host_sdk" -target "$host_target" \
-  -I "$build_path/Modules" \
+run_smoke api \
   iOS/WHOOPHealthSync/AppLog.swift \
   iOS/WHOOPHealthSync/Services/KeychainTokenStore.swift \
   iOS/WHOOPHealthSync/Services/WhoopAuthService.swift \
   iOS/WHOOPHealthSync/Services/WhoopAPIClient.swift \
   scripts/whoop_api_smoke_check.swift \
-  "$build_path"/WHOOPHealthSyncCore.build/*.swift.o \
-  -o "$api_smoke_binary"
-"$api_smoke_binary"
-rm -f "$api_smoke_binary"
+  "${core_objects[@]}"
 
-smoke_binary="$(mktemp -t whoop-repository-smoke)"
-swiftc -sdk "$host_sdk" -target "$host_target" \
-  -I "$build_path/Modules" \
+run_smoke repository \
   iOS/WHOOPHealthSync/AppLog.swift \
   iOS/WHOOPHealthSync/Persistence/SyncModels.swift \
   iOS/WHOOPHealthSync/Persistence/SyncRepository.swift \
   scripts/repository_smoke_check.swift \
-  "$build_path"/WHOOPHealthSyncCore.build/*.swift.o \
-  -o "$smoke_binary"
-"$smoke_binary"
-rm -f "$smoke_binary"
+  "${core_objects[@]}"
 
-engine_smoke_binary="$(mktemp -t whoop-sync-engine-smoke)"
-swiftc -sdk "$host_sdk" -target "$host_target" \
-  -I "$build_path/Modules" \
+run_smoke sync-engine \
   iOS/WHOOPHealthSync/AppLog.swift \
   iOS/WHOOPHealthSync/Persistence/SyncModels.swift \
   iOS/WHOOPHealthSync/Persistence/SyncRepository.swift \
@@ -65,14 +62,9 @@ swiftc -sdk "$host_sdk" -target "$host_target" \
   iOS/WHOOPHealthSync/Services/WhoopAPIClient.swift \
   iOS/WHOOPHealthSync/Services/SyncEngine.swift \
   scripts/sync_engine_smoke_check.swift \
-  "$build_path"/WHOOPHealthSyncCore.build/*.swift.o \
-  -o "$engine_smoke_binary"
-"$engine_smoke_binary"
-rm -f "$engine_smoke_binary"
+  "${core_objects[@]}"
 
-view_model_smoke_binary="$(mktemp -t whoop-view-model-smoke)"
-swiftc -sdk "$host_sdk" -target "$host_target" \
-  -I "$build_path/Modules" \
+run_smoke view-model \
   iOS/WHOOPHealthSync/AppLog.swift \
   iOS/WHOOPHealthSync/Persistence/SyncModels.swift \
   iOS/WHOOPHealthSync/Persistence/SyncRepository.swift \
@@ -88,14 +80,9 @@ swiftc -sdk "$host_sdk" -target "$host_target" \
   iOS/WHOOPHealthSync/Services/SyncCoordinator.swift \
   iOS/WHOOPHealthSync/UI/SyncViewModel.swift \
   scripts/view_model_smoke_check.swift \
-  "$build_path"/WHOOPHealthSyncCore.build/*.swift.o \
-  -o "$view_model_smoke_binary"
-"$view_model_smoke_binary"
-rm -f "$view_model_smoke_binary"
+  "${core_objects[@]}"
 
-healthkit_smoke_binary="$(mktemp -t whoop-healthkit-factory-smoke)"
-swiftc -sdk "$host_sdk" -target "$host_target" \
-  -I "$build_path/Modules" \
+run_smoke healthkit-factory \
   iOS/WHOOPHealthSync/AppLog.swift \
   iOS/WHOOPHealthSync/Services/KeychainTokenStore.swift \
   iOS/WHOOPHealthSync/Services/WhoopAuthService.swift \
@@ -104,14 +91,9 @@ swiftc -sdk "$host_sdk" -target "$host_target" \
   iOS/WHOOPHealthSync/Services/HealthKitSampleFactory.swift \
   iOS/WHOOPHealthSync/Services/HealthKitService.swift \
   scripts/healthkit_factory_smoke_check.swift \
-  "$build_path"/WHOOPHealthSyncCore.build/*.swift.o \
-  -o "$healthkit_smoke_binary"
-"$healthkit_smoke_binary"
-rm -f "$healthkit_smoke_binary"
+  "${core_objects[@]}"
 
-app_intents_smoke_binary="$(mktemp -t whoop-app-intents-smoke)"
-swiftc -sdk "$host_sdk" -target "$host_target" \
-  -I "$build_path/Modules" \
+run_smoke app-intents \
   iOS/WHOOPHealthSync/AppLog.swift \
   iOS/WHOOPHealthSync/Persistence/SyncModels.swift \
   iOS/WHOOPHealthSync/Persistence/SyncRepository.swift \
@@ -127,21 +109,13 @@ swiftc -sdk "$host_sdk" -target "$host_target" \
   iOS/WHOOPHealthSync/Services/SyncCoordinator.swift \
   iOS/WHOOPHealthSync/Intents/SynchronizeWhoopIntent.swift \
   scripts/app_intents_smoke_check.swift \
-  "$build_path"/WHOOPHealthSyncCore.build/*.swift.o \
-  -o "$app_intents_smoke_binary"
-"$app_intents_smoke_binary"
-rm -f "$app_intents_smoke_binary"
+  "${core_objects[@]}"
 
-sync_coordinator_smoke_binary="$(mktemp -t whoop-sync-coordinator-smoke)"
-swiftc -sdk "$host_sdk" -target "$host_target" \
-  -I "$build_path/Modules" \
+run_smoke sync-coordinator \
   iOS/WHOOPHealthSync/AppLog.swift \
   iOS/WHOOPHealthSync/Services/SyncCoordinator.swift \
   scripts/sync_coordinator_smoke_check.swift \
-  "$build_path"/WHOOPHealthSyncCore.build/*.swift.o \
-  -o "$sync_coordinator_smoke_binary"
-"$sync_coordinator_smoke_binary"
-rm -f "$sync_coordinator_smoke_binary"
+  "${core_objects[@]}"
 
 plutil -lint \
   iOS/WHOOPHealthSync/Info.plist \
@@ -150,7 +124,7 @@ plutil -lint \
   iOS/WHOOPHealthSync.xcodeproj/project.pbxproj
 
 strings_dir="$(mktemp -d "/tmp/health-data-bridge-strings.XXXXXX")"
-trap 'rm -rf "$strings_dir"' EXIT
+trap 'rm -rf "$smoke_dir" "$strings_dir"' EXIT
 for lproj_dir in iOS/WHOOPHealthSync/*.lproj; do
   mkdir -p "$strings_dir/$(basename "$lproj_dir" .lproj)"
 done

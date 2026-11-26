@@ -1,10 +1,5 @@
 import Foundation
 
-public enum HeartRateTimestampSemantics: Sendable {
-    case bucketStart
-    case bucketCenter
-}
-
 public struct ExistingHeartRateSample: Equatable, Sendable {
     public var id: String
     public var range: TimeRange
@@ -52,26 +47,15 @@ public struct HeartRateReconciliationPlan: Equatable, Sendable {
 public enum HeartRateCoverageReconciler {
     public static func bucket(
         for point: HeartRatePoint,
-        stepSeconds: Int,
-        semantics: HeartRateTimestampSemantics
+        stepSeconds: Int
     ) -> TimeRange {
-        let step = TimeInterval(stepSeconds)
-        switch semantics {
-        case .bucketStart:
-            return TimeRange(start: point.timestamp, end: point.timestamp.addingTimeInterval(step))
-        case .bucketCenter:
-            return TimeRange(
-                start: point.timestamp.addingTimeInterval(-step / 2),
-                end: point.timestamp.addingTimeInterval(step / 2)
-            )
-        }
+        TimeRange(start: point.timestamp, end: point.timestamp.addingTimeInterval(TimeInterval(stepSeconds)))
     }
 
     public static func plan(
         points: [HeartRatePoint],
         existingSamples: [ExistingHeartRateSample],
         stepSeconds: Int,
-        semantics: HeartRateTimestampSemantics = .bucketStart,
         equivalentToleranceBPM: Double = 0.5
     ) -> HeartRateReconciliationPlan {
         let sortedPoints = points.sorted { $0.timestamp < $1.timestamp }
@@ -86,7 +70,7 @@ public enum HeartRateCoverageReconciler {
         var overlapsByPoint: [[ExistingHeartRateSample]] = []
         overlapsByPoint.reserveCapacity(sortedPoints.count)
         for point in sortedPoints {
-            let bucket = bucket(for: point, stepSeconds: stepSeconds, semantics: semantics)
+            let bucket = bucket(for: point, stepSeconds: stepSeconds)
             while cursor < sortedExisting.count && isStrictlyBeforeBucket(sortedExisting[cursor], bucket: bucket) {
                 cursor += 1
             }
@@ -107,7 +91,7 @@ public enum HeartRateCoverageReconciler {
         equivalentByPoint.reserveCapacity(sortedPoints.count)
         var keptIDs = Set<String>()
         for (point, overlaps) in zip(sortedPoints, overlapsByPoint) {
-            let bucket = bucket(for: point, stepSeconds: stepSeconds, semantics: semantics)
+            let bucket = bucket(for: point, stepSeconds: stepSeconds)
             let equivalent = overlaps.contains { !$0.isOwnedByApp } ? nil : overlaps.first {
                 $0.isOwnedByApp && $0.range == bucket && abs($0.bpm - point.bpm) <= equivalentToleranceBPM
             }
