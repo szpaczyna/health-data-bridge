@@ -71,7 +71,9 @@ the already-requested base types. No source is automatically identified by name.
 
 Recent runs validate permissions without reopening setup or permissions sheets.
 Manual sync still reconciles legacy access-deferred windows; these are not the
-separate explicit-history task. Shortcuts retain their existing deferred-work policy.
+separate explicit-history task. When read access covers only part of a deferred
+window, manual sync reads that part once and shrinks the window to the range still
+behind the boundary. Shortcuts retain their existing deferred-work policy.
 Results distinguish confirmed writes, existing samples, no received data, unchecked
 phases and pending access. Global failures retain the runtime's confirmed partial
 summary. Empty historical responses with limited reading cannot confirm a window.

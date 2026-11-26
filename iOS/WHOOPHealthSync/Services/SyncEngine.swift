@@ -34,6 +34,7 @@ protocol SyncPersisting {
     func validateAccount(_ key: String) throws
     func deferredWindow(for type: String) throws -> TimeRange?
     func setDeferredWindow(_ window: TimeRange?, for type: String) throws
+    func narrowDeferredWindow(to end: Date, for type: String) throws
     func appendEvent(runID: UUID?, level: String, category: String, message: String) throws
 }
 
@@ -41,6 +42,7 @@ extension SyncPersisting {
     func validateAccount(_ key: String) throws {}
     func deferredWindow(for type: String) throws -> TimeRange? { nil }
     func setDeferredWindow(_ window: TimeRange?, for type: String) throws {}
+    func narrowDeferredWindow(to end: Date, for type: String) throws {}
 }
 extension HealthDataProviding {
     func authorizedBoundary(for type: String) async throws -> Date? { nil }
@@ -220,14 +222,13 @@ final class SyncEngine {
             try Task.checkCancellation()
             sleepBoundary = try await healthKit.authorizedBoundary(for: "sleep")
             heartRateBoundary = try await healthKit.authorizedBoundary(for: "heartRate")
-            // A deferred window is retried only once access covers its start; otherwise every run re-reads it in vain.
+            // A deferred window is retried from the boundary; settling it afterwards stops later runs re-reading that part.
             if mergingDeferred {
-                // shortcut: a partly widened boundary keeps the whole deferred window pending; history import recovers it.
-                if let window = try repository.deferredWindow(for: "sleep"), sleepBoundary.map({ $0 <= window.start }) ?? true {
-                    plan.sleepDiscoveryWindow.start = min(plan.sleepDiscoveryWindow.start, window.start)
+                if let start = try readableDeferredStart("sleep", boundary: sleepBoundary) {
+                    plan.sleepDiscoveryWindow.start = min(plan.sleepDiscoveryWindow.start, start)
                 }
-                if let window = try repository.deferredWindow(for: "heartRate"), heartRateBoundary.map({ $0 <= window.start }) ?? true {
-                    plan.heartRateWindow.start = min(plan.heartRateWindow.start, window.start)
+                if let start = try readableDeferredStart("heartRate", boundary: heartRateBoundary) {
+                    plan.heartRateWindow.start = min(plan.heartRateWindow.start, start)
                 }
             }
             let sleepQueryWindow = SyncWindowPlanner.sleepQueryWindow(for: plan)
@@ -466,7 +467,7 @@ final class SyncEngine {
             if !sleepHadErrors {
                 try Task.checkCancellation()
                 if !importingHistory {
-                    if try deferredWindowResolved("sleep", windowStart: sleepWindow.start, boundary: sleepBoundary) { try repository.setDeferredWindow(nil, for: "sleep") }
+                    try settleDeferredWindow("sleep", windowStart: sleepWindow.start, boundary: sleepBoundary)
                     try repository.setSleepCheckpoint(plan.sleepDiscoveryWindow.end)
                 }
                 recordEvent(runID: runID, level: "info", category: "sleep.checkpoint", message: String(localized: "Sleep checkpoint updated to \(Self.iso(plan.sleepDiscoveryWindow.end))."))
@@ -584,17 +585,26 @@ final class SyncEngine {
             }
         }
 
-        if try !importingHistory && deferredWindowResolved("heartRate", windowStart: plan.heartRateWindow.start, boundary: heartRateBoundary) {
-            try repository.setDeferredWindow(nil, for: "heartRate")
+        if !importingHistory {
+            try settleDeferredWindow("heartRate", windowStart: plan.heartRateWindow.start, boundary: heartRateBoundary)
         }
         return summary
     }
 
-    // Only a run that merged the deferred window and could read all of it may clear it.
-    private func deferredWindowResolved(_ type: String, windowStart: Date, boundary: Date?) throws -> Bool {
-        guard mergingDeferred else { return false }
-        guard let boundary else { return true }
-        return try windowStart >= boundary && (repository.deferredWindow(for: type).map { $0.start >= boundary } ?? true)
+    private func readableDeferredStart(_ type: String, boundary: Date?) throws -> Date? {
+        guard let window = try repository.deferredWindow(for: type) else { return nil }
+        guard let boundary else { return window.start }
+        return boundary < window.end ? max(window.start, boundary) : nil
+    }
+
+    // Only a clean run that merged the deferred window may shrink it; the part behind the boundary stays pending.
+    private func settleDeferredWindow(_ type: String, windowStart: Date, boundary: Date?) throws {
+        guard mergingDeferred else { return }
+        if let boundary, try windowStart < boundary || repository.deferredWindow(for: type).map({ $0.start < boundary }) == true {
+            try repository.narrowDeferredWindow(to: boundary, for: type)
+        } else {
+            try repository.setDeferredWindow(nil, for: type)
+        }
     }
 
     private func fetchHeartRateWithFallback(

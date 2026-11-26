@@ -24,6 +24,8 @@ struct SyncEngineSmokeCheck {
         try await testSleepAccessShrinkBeforeWriteKeepsNightPending()
         try await testRunWithoutDeferredResumeKeepsDeferredWindows()
         try await testDeferredWindowBeforeBoundaryIsNotMerged()
+        try await testPartlyWidenedBoundaryRetriesReadablePartOnce()
+        try await testFailedOrCancelledRunKeepsWholeDeferredWindow()
         try await testCancelledSleepDoesNotAdvanceOrContinueHeartRate()
         try await testRecoveryCapabilityGatesPreserveExistingFlows()
         try await testLegacyAccountBindingAndChangedAccountStopBeforeQueries()
@@ -681,6 +683,87 @@ struct SyncEngineSmokeCheck {
         expect(summary.heartRateWindowStart.map { $0 > deferred.end } == true, "An HR deferral before the boundary must not widen the window.")
         try expect(try repository.deferredWindow(for: "sleep") != nil, "A sleep deferral before the boundary must stay pending.")
         try expect(try repository.deferredWindow(for: "heartRate") != nil, "An HR deferral before the boundary must stay pending.")
+    }
+
+    @MainActor
+    private static func testPartlyWidenedBoundaryRetriesReadablePartOnce() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("partial-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let now = Date()
+        let day: TimeInterval = 86400
+        let deferred = TimeRange(start: now.addingTimeInterval(-20 * day), end: now.addingTimeInterval(-10 * day))
+        let boundary = now.addingTimeInterval(-15 * day)
+        let narrowed = TimeRange(start: deferred.start, end: boundary)
+        let readable = try makeSleepSession(id: "readable", start: now.addingTimeInterval(-12 * day))
+        let crossing = try makeSleepSession(id: "crossing", start: boundary.addingTimeInterval(-1800))
+        let hidden = try makeSleepSession(id: "hidden", start: now.addingTimeInterval(-18 * day))
+        let points = [HeartRatePoint(timestamp: now.addingTimeInterval(-12 * day), bpm: 60, sourceStepSeconds: 6),
+                      HeartRatePoint(timestamp: now.addingTimeInterval(-18 * day), bpm: 61, sourceStepSeconds: 6)]
+        let repository = SyncRepository(fileURL: url)
+        try repository.bindAccountManually(WhoopRecovery.pseudonymousAccountKey(userID: "fake-user"))
+        try repository.setHeartRateCheckpoint(now.addingTimeInterval(-3600), resolution: 6)
+        try repository.setSleepCheckpoint(now.addingTimeInterval(-3600))
+        try repository.setDeferredWindow(deferred, for: "sleep")
+        try repository.setDeferredWindow(deferred, for: "heartRate")
+        let health = FakeHealthData(externalSleep: [], externalHeartRate: [])
+        health.sleepBoundary = boundary; health.heartRateBoundary = boundary
+        let engine = SyncEngine(api: FakeWhoopAPI(sleeps: [readable, crossing, hidden], heartRatePoints: points), healthKit: health, repository: repository)
+
+        _ = try await engine.synchronize(recoveryMode: .recent, resumeDeferred: false, origin: .automation)
+        try expect(try repository.deferredWindow(for: "sleep") == deferred && repository.deferredWindow(for: "heartRate") == deferred, "A run that did not merge deferred windows must not narrow them.")
+
+        let partial = try await engine.synchronize()
+        expect(partial.sleepQueryWindowStart == boundary && partial.heartRateWindowStart == boundary, "A partly widened deferral must be retried from the boundary.")
+        expect(partial.stagesWritten == readable.stages.count, "Only the readable night of a partly widened deferral may be written.")
+        expect(partial.heartRateWritten == 1, "Only the readable HR point of a partly widened deferral may be written.")
+        try expect(try repository.deferredWindow(for: "sleep") == narrowed, "The sleep deferral must shrink to the part behind the boundary.")
+        try expect(try repository.deferredWindow(for: "heartRate") == narrowed, "The HR deferral must shrink to the part behind the boundary.")
+
+        let repeated = try await engine.synchronize()
+        expect(repeated.sleepQueryWindowStart.map { $0 > boundary } == true && repeated.heartRateWindowStart.map { $0 > boundary } == true, "A narrowed deferral must not be re-read while the boundary stays put.")
+        try expect(try repository.deferredWindow(for: "sleep") == narrowed && repository.deferredWindow(for: "heartRate") == narrowed, "An unchanged boundary must leave the narrowed deferral as it is.")
+
+        health.sleepBoundary = nil; health.heartRateBoundary = nil
+        let expanded = try await engine.synchronize()
+        expect(expanded.stagesWritten == crossing.stages.count + hidden.stages.count, "Full access must write the nights left behind the boundary.")
+        expect(expanded.heartRateWritten == 1, "Full access must write only the HR point left behind the boundary.")
+        try expect(try repository.deferredWindow(for: "sleep") == nil && repository.deferredWindow(for: "heartRate") == nil, "Full access must clear both deferrals.")
+    }
+
+    @MainActor
+    private static func testFailedOrCancelledRunKeepsWholeDeferredWindow() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("partial-failure-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let now = Date()
+        let day: TimeInterval = 86400
+        let deferred = TimeRange(start: now.addingTimeInterval(-20 * day), end: now.addingTimeInterval(-10 * day))
+        let boundary = now.addingTimeInterval(-15 * day)
+        let repository = SyncRepository(fileURL: url)
+        try repository.bindAccountManually(WhoopRecovery.pseudonymousAccountKey(userID: "fake-user"))
+        try repository.setHeartRateCheckpoint(now.addingTimeInterval(-3600), resolution: 6)
+        try repository.setSleepCheckpoint(now.addingTimeInterval(-3600))
+        try repository.setDeferredWindow(deferred, for: "heartRate")
+        let health = FakeHealthData(externalSleep: [], externalHeartRate: [])
+        health.sleepBoundary = boundary; health.heartRateBoundary = boundary
+        health.throwOnHeartRateSave = true
+        let point = HeartRatePoint(timestamp: now.addingTimeInterval(-12 * day), bpm: 60, sourceStepSeconds: 6)
+        let engine = SyncEngine(api: FakeWhoopAPI(sleeps: [], heartRatePoints: [point]), healthKit: health, repository: repository)
+        _ = try await engine.synchronize()
+        try expect(try repository.deferredWindow(for: "heartRate") == deferred, "A failed HR run must not narrow its deferral.")
+        health.throwOnHeartRateSave = false
+        let retried = try await engine.synchronize()
+        expect(retried.heartRateWritten == 1 && health.savedHeartRatePointCount == 1, "The retry must write the readable HR point once.")
+        try expect(try repository.deferredWindow(for: "heartRate") == TimeRange(start: deferred.start, end: boundary), "A clean retry must narrow the HR deferral.")
+
+        try repository.setDeferredWindow(deferred, for: "sleep")
+        let night = try makeSleepSession(id: "cancelled", start: now.addingTimeInterval(-12 * day))
+        let cancelling = FakeHealthData(externalSleep: [], externalHeartRate: [])
+        cancelling.sleepBoundary = boundary; cancelling.heartRateBoundary = boundary
+        cancelling.cancelSleepSave = true
+        let cancelEngine = SyncEngine(api: FakeWhoopAPI(sleeps: [night], heartRatePoints: []), healthKit: cancelling, repository: repository)
+        do { _ = try await cancelEngine.synchronize(); fatalError("Cancellation must propagate") }
+        catch { expect(error is CancellationError, "Cancellation must retain its identity.") }
+        try expect(try repository.deferredWindow(for: "sleep") == deferred, "A cancelled sleep run must not narrow its deferral.")
     }
 
     @MainActor

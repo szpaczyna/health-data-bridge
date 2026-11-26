@@ -407,6 +407,18 @@ struct RepositorySmokeCheck {
         expect(protectedJournal.loadError != nil, "An unreadable WAL must block a readable main store rather than silently drop pending operations.")
         do { try protectedJournal.completeSyncSetup(); fatalError("Protected journal must block setup writes") } catch {}
         try expect(try Data(contentsOf: setupURL) == committedBytes, "An unreadable WAL never replaces the main store.")
+
+        let deferredURL = directory.appendingPathComponent("deferred-store.json", isDirectory: false)
+        let deferredRepository = SyncRepository(fileURL: deferredURL)
+        try deferredRepository.narrowDeferredWindow(to: date(50), for: "sleep")
+        try expect(try deferredRepository.deferredWindow(for: "sleep") == nil, "Narrowing a missing deferral must not create one.")
+        try deferredRepository.setDeferredWindow(TimeRange(start: date(10), end: date(100)), for: "sleep")
+        try deferredRepository.narrowDeferredWindow(to: date(200), for: "sleep")
+        try expect(try deferredRepository.deferredWindow(for: "sleep") == TimeRange(start: date(10), end: date(100)), "Narrowing past the end must not widen a deferral.")
+        try deferredRepository.narrowDeferredWindow(to: date(50), for: "sleep")
+        try expect(try SyncRepository(fileURL: deferredURL).deferredWindow(for: "sleep") == TimeRange(start: date(10), end: date(50)), "A narrowed deferral keeps its start and survives reload.")
+        try deferredRepository.narrowDeferredWindow(to: date(10), for: "sleep")
+        try expect(try SyncRepository(fileURL: deferredURL).deferredWindow(for: "sleep") == nil, "Narrowing to the start removes the deferral.")
         print("SyncRepository smoke check passed (migration, corruption, disk rollback, account separation)")
     }
 
