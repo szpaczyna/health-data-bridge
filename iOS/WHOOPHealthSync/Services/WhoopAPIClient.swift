@@ -68,6 +68,8 @@ actor WhoopAPIClient {
     }
 
     private var recoveryRetryNotBefore: Date?
+    // A buggy or hostile Retry-After must not pause recovery import indefinitely.
+    private static let maxRecoveryDeferral: TimeInterval = 86_400
 
     func fetchRecoveryCycleRecords(userID: String, window: TimeRange) async throws -> [[String: Any]] {
         if let date = recoveryRetryNotBefore, date > Date() { throw RecoverySyncError.rateLimited(until: date) }
@@ -318,7 +320,7 @@ actor WhoopAPIClient {
         let delay = RateLimitBackoff.resetDelay(resetSeconds: reset, arrivedAt: state.arrivedAt)
         guard delay <= retryPolicy.maxDelay else {
             if recoveryRequest {
-                let until = Date().addingTimeInterval(delay)
+                let until = Date().addingTimeInterval(min(delay, Self.maxRecoveryDeferral))
                 recoveryRetryNotBefore = until
                 throw RecoverySyncError.rateLimited(until: until)
             }
@@ -355,7 +357,7 @@ actor WhoopAPIClient {
         formatter.timeZone = TimeZone(secondsFromGMT: 0); formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
         let date = Double(raw).flatMap { $0.isFinite && $0 >= 0 ? Date().addingTimeInterval($0) : nil }
             ?? formatter.date(from: raw) ?? Date().addingTimeInterval(60)
-        recoveryRetryNotBefore = max(Date(), date)
+        recoveryRetryNotBefore = min(max(Date(), date), Date().addingTimeInterval(Self.maxRecoveryDeferral))
         return .rateLimited(until: recoveryRetryNotBefore!)
     }
 

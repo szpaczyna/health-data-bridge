@@ -10,6 +10,8 @@ import CoreFoundation
     private let state: @MainActor () throws -> RecoverySyncState
     private let commitState: @MainActor (RecoverySyncState) throws -> Void
     private let pageDuration: TimeInterval = 7 * 86400
+    // Same ceiling as WhoopAPIClient.maxRecoveryDeferral, which Core cannot import.
+    private static let maxRetryDeferral: TimeInterval = 86_400
     private struct Cursor: Codable {
         var end: Date
         var start: Date
@@ -91,12 +93,19 @@ import CoreFoundation
         return try decode(raw, userID: userID).items
     }
     private func fetchRecords(_ userID: String, _ window: TimeRange) async throws -> [[String: Any]] {
-        if let date = try state().providerRetryNotBefore, date > Date() { throw RecoverySyncError.rateLimited(until: date) }
+        var current = try state()
+        if let date = current.providerRetryNotBefore, date > Date() {
+            let capped = min(date, Date().addingTimeInterval(Self.maxRetryDeferral))
+            // Persist the cap so a far-future deadline stored by 0.4.0 expires instead of sliding forward on every read.
+            if capped < date { current.providerRetryNotBefore = capped; try commitState(current) }
+            throw RecoverySyncError.rateLimited(until: capped)
+        }
         do { return try await fetch(userID, window) }
         catch let RecoverySyncError.rateLimited(date) {
-            var saved = try state(); saved.providerRetryNotBefore = date
+            let capped = min(date, Date().addingTimeInterval(Self.maxRetryDeferral))
+            var saved = try state(); saved.providerRetryNotBefore = capped
             try commitState(saved)
-            throw RecoverySyncError.rateLimited(until: date)
+            throw RecoverySyncError.rateLimited(until: capped)
         }
     }
     private func decode(_ records: [[String: Any]], userID: String) throws -> (items: [WhoopRecovery], skipped: Int) {

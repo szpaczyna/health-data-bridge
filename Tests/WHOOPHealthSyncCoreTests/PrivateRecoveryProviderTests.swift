@@ -77,6 +77,23 @@ import XCTest
         catch { XCTAssertEqual(error as? RecoverySyncError, .rateLimited(until: deadline)) }
         XCTAssertEqual(requests, 1)
     }
+    func testFarFutureRetryDeadlineIsCappedAtTwentyFourHours() async throws {
+        var state = RecoverySyncState(); state.historyStartDate = start
+        state.providerRetryNotBefore = Date().addingTimeInterval(365 * 86400)
+        var requests = 0
+        let window = TimeRange(start: start, end: start.addingTimeInterval(86400))
+        let persisted = WhoopPrivateRecoveryProvider(currentUserID: { "123" }, fetch: { _, _ in requests += 1; return [] }, state: { state }, commitState: { state = $0 })
+        do { _ = try await persisted.recentRecords(accountKey: key, window: window); XCTFail() }
+        catch let RecoverySyncError.rateLimited(date) { XCTAssertLessThanOrEqual(date.timeIntervalSinceNow, 86400 + 5) }
+        XCTAssertLessThanOrEqual(try XCTUnwrap(state.providerRetryNotBefore).timeIntervalSinceNow, 86400 + 5)
+        XCTAssertEqual(requests, 0)
+
+        state.providerRetryNotBefore = nil
+        let fresh = WhoopPrivateRecoveryProvider(currentUserID: { "123" }, fetch: { _, _ in throw RecoverySyncError.rateLimited(until: Date().addingTimeInterval(365 * 86400)) }, state: { state }, commitState: { state = $0 })
+        do { _ = try await fresh.recentRecords(accountKey: key, window: window); XCTFail() }
+        catch let RecoverySyncError.rateLimited(date) { XCTAssertLessThanOrEqual(date.timeIntervalSinceNow, 86400 + 5) }
+        XCTAssertLessThanOrEqual(try XCTUnwrap(state.providerRetryNotBefore).timeIntervalSinceNow, 86400 + 5)
+    }
     func testJournalOnlyRestartCanFindRecoveryByPersistedSleepAnchor() async throws {
         var state = RecoverySyncState(); state.historyStartDate = start
         let end = start.addingTimeInterval(86400)
